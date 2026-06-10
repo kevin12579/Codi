@@ -1,0 +1,29 @@
+# Build
+build/
+target/
+out/
+*.class
+
+# Gradle
+.gradle/
+gradle-wrapper.jar
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# 환경 변수 (절대 Git에 올리지 않기)
+.env
+.env.local
+.env.prod
+application-local.yml
+application-prod.yml
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+logs/

@@ -1,0 +1,47 @@
+# ===========================
+# 코디(Code AI) — 루트 .gitignore
+# ===========================
+
+# 환경변수 (절대 Git에 올리지 않기)
+.env
+.env.local
+.env.prod
+
+# macOS
+.DS_Store
+
+# ===========================
+# 백엔드 (Kotlin + Gradle)
+# ===========================
+codeai-backend/build/
+codeai-backend/target/
+codeai-backend/out/
+codeai-backend/.gradle/
+codeai-backend/.idea/
+codeai-backend/*.iml
+*.class
+*.log
+logs/
+
+# application-local.yml, application-prod.yml은 .env 로 주입 (Git 제외)
+codeai-backend/src/main/resources/application-local.yml
+codeai-backend/src/main/resources/application-prod.yml
+
+# ===========================
+# 프론트엔드 (Node.js + Vite)
+# ===========================
+codeai-frontend/node_modules/
+codeai-frontend/dist/
+codeai-frontend/dist-ssr/
+codeai-frontend/.env
+codeai-frontend/.env.local
+codeai-frontend/.env.production
+npm-debug.log*
+
+# 에디터
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+
+guide/
