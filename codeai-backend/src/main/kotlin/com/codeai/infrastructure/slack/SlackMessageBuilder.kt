@@ -1,8 +1,28 @@
 package com.codeai.infrastructure.slack
 
 import com.codeai.domain.event.ReviewCompleted
+import com.codeai.domain.event.TestRunCompleted
 
 object SlackMessageBuilder {
+
+    fun buildTestRunMessage(event: TestRunCompleted): Map<String, Any> {
+        val status = if (event.passed) "✅ 테스트 통과" else "❌ 테스트 실패 (${event.failedCount}건)"
+        val color = if (event.passed) "#36a64f" else "#ff0000"
+        return mapOf(
+            "text" to "코디(Code AI) 테스트 완료",
+            "attachments" to listOf(
+                mapOf(
+                    "color" to color,
+                    "fields" to listOf(
+                        mapOf("title" to "상태", "value" to status, "short" to true),
+                        mapOf("title" to "전체", "value" to event.totalTests.toString(), "short" to true),
+                        mapOf("title" to "실패", "value" to event.failedCount.toString(), "short" to true),
+                        mapOf("title" to "pipelineId", "value" to event.pipelineExecutionId.toString(), "short" to true)
+                    )
+                )
+            )
+        )
+    }
 
     fun buildReviewMessage(event: ReviewCompleted): Map<String, Any> {
         val isClean = event.highCount == 0
