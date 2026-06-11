@@ -47,4 +47,10 @@ class PipelineRepositoryImpl(
         withContext(Dispatchers.IO) {
             jpa.findTop10ByOrderByCreatedAtDesc().map { it.toDomain() }
         }
+
+    override suspend fun findCompletedSince(days: Int): List<PipelineExecution> =
+        withContext(Dispatchers.IO) {
+            val since = java.time.LocalDateTime.now().minusDays(days.toLong())
+            jpa.findCompletedSince(since).map { it.toDomain() }
+        }
 }
