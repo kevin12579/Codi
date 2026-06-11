@@ -21,6 +21,9 @@ class RepositoryRepositoryImpl(
             jpa.findByFullName(fullName).orElse(null)?.toDomain()
         }
 
+    override suspend fun findAll(): List<Repository> =
+        withContext(Dispatchers.IO) { jpa.findAll().map { it.toDomain() } }
+
     override suspend fun save(repo: Repository): Repository =
         withContext(Dispatchers.IO) {
             jpa.save(RepositoryEntity.from(repo)).toDomain()
