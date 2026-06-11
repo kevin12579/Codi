@@ -2,8 +2,10 @@ package com.codeai.presentation.pipeline
 
 import com.codeai.domain.notification.NotificationMessage
 import com.codeai.domain.pipeline.PipelineExecution
+import com.codeai.domain.pipeline.PipelineStep
 import com.codeai.domain.review.CodeReview
 import com.codeai.domain.review.ReviewComment
+import com.codeai.domain.testrun.TestRun
 import java.time.LocalDateTime
 
 data class PipelineListResponse(
@@ -43,9 +45,27 @@ data class PipelineDetailResponse(
     val status: String,
     val startedAt: LocalDateTime?,
     val completedAt: LocalDateTime?,
+    val steps: List<StepSummary>,
     val review: ReviewSummary?,
+    val testRun: TestRunSummary?,
     val notifications: List<NotificationSummary>
 )
+
+data class StepSummary(
+    val stepType: String,
+    val status: String,
+    val startedAt: LocalDateTime?,
+    val completedAt: LocalDateTime?,
+    val errorMessage: String?
+) {
+    companion object {
+        fun from(s: PipelineStep) = StepSummary(
+            stepType = s.stepType.name, status = s.status.name,
+            startedAt = s.startedAt, completedAt = s.completedAt,
+            errorMessage = s.errorMessage
+        )
+    }
+}
 
 data class ReviewSummary(
     val status: String,
@@ -83,6 +103,21 @@ data class CommentSummary(
     }
 }
 
+data class TestRunSummary(
+    val status: String,
+    val totalTests: Int,
+    val passed: Int,
+    val failed: Int,
+    val coveragePct: Double?
+) {
+    companion object {
+        fun from(t: TestRun) = TestRunSummary(
+            status = t.status.name, totalTests = t.totalTests,
+            passed = t.passed, failed = t.failed, coveragePct = t.coveragePct
+        )
+    }
+}
+
 data class NotificationSummary(
     val channel: String,
     val status: String,
@@ -100,5 +135,14 @@ data class PipelineStatsResponse(
     val successCount: Long,
     val failedCount: Long,
     val successRate: Double,
-    val period: String
+    val avgDurationSeconds: Long,
+    val period: String,
+    val dailyStats: List<DailyStat>
+)
+
+data class DailyStat(
+    val date: String,
+    val total: Long,
+    val success: Long,
+    val failed: Long
 )
