@@ -58,7 +58,9 @@ codeai:
 claude:
   api:
     key: ${CLAUDE_API_KEY:placeholder}
-    max-tokens: ${CLAUDE_MAX_TOKENS:3000}
+    model: ${CLAUDE_MODEL:claude-haiku-4-5-20251001}
+    max-tokens: ${CLAUDE_MAX_TOKENS:2000}
+    max-chunks: ${CLAUDE_MAX_CHUNKS:10}
 
 slack:
   webhook:

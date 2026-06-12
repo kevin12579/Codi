@@ -33,7 +33,7 @@ object ClaudeReviewPrompt {
         - 코드 품질 (중복 코드, 단일 책임 원칙 위반)
 
         응답 형식 (반드시 JSON만 반환, 마크다운 코드블록 없이):
-        {"issues": [{"severity": "HIGH|MEDIUM|LOW", "filePath": "파일 경로", "lineNumber": 줄번호 또는 null, "content": "이슈 설명", "suggestion": "수정 예시 또는 null"}]}
+        {"issues": [{"severity": "HIGH|MEDIUM|LOW", "filePath": "파일 경로", "lineNumber": 줄번호 또는 null, "content": "이슈 설명 (2문장 이내)", "suggestion": "수정 방향 1문장 (코드 예시 없이 텍스트만)"}]}
 
         이슈가 없으면: {"issues": []}
 
