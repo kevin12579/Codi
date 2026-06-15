@@ -50,7 +50,10 @@ class GitHubPrCommentClient(
         if (comments.isEmpty()) {
             sb.appendLine("✅ 이슈가 발견되지 않았습니다.")
         } else {
-            comments.take(20).forEach { c ->
+            val severityOrder = mapOf("HIGH" to 0, "MEDIUM" to 1, "LOW" to 2)
+            val sorted = comments.sortedBy { severityOrder[it.severity] ?: 3 }
+            if (comments.size > 20) sb.appendLine("_총 ${comments.size}건 중 심각도 순 상위 20건 표시_\n")
+            sorted.take(20).forEach { c ->
                 val icon = when (c.severity) { "HIGH" -> "🔴"; "MEDIUM" -> "🟡"; else -> "🟢" }
                 sb.appendLine("### $icon [${c.severity}] `${c.filePath}`${c.lineNumber?.let { ":$it" } ?: ""}")
                 sb.appendLine(c.content)
