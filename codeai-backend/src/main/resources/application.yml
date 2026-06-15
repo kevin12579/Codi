@@ -1,6 +1,24 @@
+server:
+  forward-headers-strategy: framework
+
 spring:
   application:
     name: codeai-backend
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:codeai}
+    username: ${DB_USER:codeai}
+    password: ${DB_PASSWORD:codeai1234}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
 
   data:
     redis:
@@ -10,6 +28,13 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: method
+  api-docs:
+    path: /api-docs
 
 management:
   endpoints:
@@ -23,18 +48,35 @@ management:
 
 codeai:
   webhook:
-    secret: ${WEBHOOK_SECRET:default-secret}
+    secret: ${WEBHOOK_SECRET}
+    callback-url: ${WEBHOOK_CALLBACK_URL:http://localhost:8080/webhook/github}
   api:
     key: ${CODEAI_API_KEY:codeai-local-key}
+  review:
+    prompt-version: ${CLAUDE_PROMPT_VERSION:v3}
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 claude:
   api:
-    key: ${CLAUDE_API_KEY}
-    max-tokens: ${CLAUDE_MAX_TOKENS:3000}
+    key: ${CLAUDE_API_KEY:placeholder}
+    model: ${CLAUDE_MODEL:claude-haiku-4-5-20251001}
+    max-tokens: ${CLAUDE_MAX_TOKENS:2000}
+    max-chunks: ${CLAUDE_MAX_CHUNKS:10}
 
 slack:
   webhook:
-    url: ${SLACK_WEBHOOK_URL}
+    url: ${SLACK_WEBHOOK_URL:placeholder}
 
 github:
-  token: ${GITHUB_TOKEN}
+  token: ${GITHUB_TOKEN:placeholder}
+  deploy:
+    workflow-id: ${GITHUB_DEPLOY_WORKFLOW_ID:deploy.yml}
+
+playwright:
+  enabled: ${PLAYWRIGHT_ENABLED:false}
+  working-dir: ${PLAYWRIGHT_WORKING_DIR:./codeai-frontend}
+  timeout-ms: ${PLAYWRIGHT_TIMEOUT_MS:120000}
+  use-docker: ${PLAYWRIGHT_USE_DOCKER:false}
+  docker-image: ${PLAYWRIGHT_DOCKER_IMAGE:mcr.microsoft.com/playwright:v1.44.0-jammy}
