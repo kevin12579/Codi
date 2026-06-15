@@ -2,6 +2,7 @@ package com.codeai.presentation.webhook
 
 import com.codeai.application.webhook.WebhookProcessUseCase
 import com.codeai.presentation.common.ApiResponse
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -9,7 +10,8 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/webhook")
 class WebhookController(
     private val hmacValidator: HmacValidator,
-    private val webhookProcessUseCase: WebhookProcessUseCase
+    private val webhookProcessUseCase: WebhookProcessUseCase,
+    private val objectMapper: ObjectMapper
 ) {
     @PostMapping("/github")
     suspend fun receiveGithubWebhook(
@@ -25,6 +27,18 @@ class WebhookController(
         if (eventType != "pull_request") {
             return ResponseEntity.ok(
                 ApiResponse.ok(mapOf<String, Any>("message" to "ignored"), "지원하지 않는 이벤트 타입")
+            )
+        }
+
+        // opened: PR 신규 생성, synchronize: PR 브랜치에 새 커밋 push만 처리
+        // closed(merge), labeled, assigned 등은 무시
+        val action = try {
+            objectMapper.readTree(payload).get("action")?.asText() ?: ""
+        } catch (e: Exception) { "" }
+
+        if (action !in setOf("opened", "synchronize", "reopened")) {
+            return ResponseEntity.ok(
+                ApiResponse.ok(mapOf<String, Any>("message" to "ignored", "action" to action), "처리 대상 아님 (action=$action)")
             )
         }
 
