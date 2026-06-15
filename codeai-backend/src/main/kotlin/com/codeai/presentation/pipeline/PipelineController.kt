@@ -3,8 +3,12 @@ package com.codeai.presentation.pipeline
 import com.codeai.application.pipeline.PipelineQueryUseCase
 import com.codeai.application.pipeline.PipelineStatsUseCase
 import com.codeai.presentation.common.ApiResponse
+import io.swagger.v3.oas.annotations.security.SecurityRequirement
+import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.web.bind.annotation.*
 
+@Tag(name = "파이프라인", description = "PR 파이프라인 조회 / 상세 / 통계")
+@SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/pipelines")
 class PipelineController(

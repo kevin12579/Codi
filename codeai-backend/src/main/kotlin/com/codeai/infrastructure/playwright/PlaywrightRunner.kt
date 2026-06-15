@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit
  */
 @Component
 class PlaywrightRunner(
+    @Value("\${playwright.enabled:false}") private val enabled: Boolean,
     @Value("\${playwright.working-dir:./codeai-frontend}") private val workingDir: String,
     @Value("\${playwright.timeout-ms:120000}") private val timeoutMs: Long,
     @Value("\${playwright.use-docker:false}") private val useDocker: Boolean,
@@ -23,6 +24,11 @@ class PlaywrightRunner(
     private val log = LoggerFactory.getLogger(this::class.java)
 
     suspend fun run(testFilter: String? = null): PlaywrightResult = withContext(Dispatchers.IO) {
+        if (!enabled) {
+            log.info("Playwright 비활성화 (PLAYWRIGHT_ENABLED=false) — 테스트 스킵")
+            return@withContext PlaywrightResult(totalTests = 0, passed = 0, failed = 0, skipped = 0, cases = emptyList())
+        }
+
         log.info("Playwright 테스트 실행 시작: filter=$testFilter, useDocker=$useDocker")
 
         val command = buildCommand(testFilter)

@@ -1,3 +1,6 @@
+server:
+  forward-headers-strategy: framework
+
 spring:
   application:
     name: codeai-backend
@@ -72,6 +75,7 @@ github:
     workflow-id: ${GITHUB_DEPLOY_WORKFLOW_ID:deploy.yml}
 
 playwright:
+  enabled: ${PLAYWRIGHT_ENABLED:false}
   working-dir: ${PLAYWRIGHT_WORKING_DIR:./codeai-frontend}
   timeout-ms: ${PLAYWRIGHT_TIMEOUT_MS:120000}
   use-docker: ${PLAYWRIGHT_USE_DOCKER:false}
