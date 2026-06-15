@@ -30,4 +30,10 @@ interface PipelineExecutionJpaRepository : JpaRepository<PipelineExecutionEntity
 
     @Query("SELECT p FROM PipelineExecutionEntity p WHERE p.completedAt IS NOT NULL AND p.createdAt >= :since ORDER BY p.createdAt ASC")
     fun findCompletedSince(@Param("since") since: LocalDateTime): List<PipelineExecutionEntity>
+
+    fun findFirstByRepositoryIdAndPrNumberAndStatusInOrderByCreatedAtDesc(
+        repositoryId: Long,
+        prNumber: Int,
+        statuses: List<PipelineStatus>
+    ): PipelineExecutionEntity?
 }

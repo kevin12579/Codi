@@ -45,14 +45,14 @@ management:
 
 codeai:
   webhook:
-    secret: ${WEBHOOK_SECRET:default-secret}
+    secret: ${WEBHOOK_SECRET}
     callback-url: ${WEBHOOK_CALLBACK_URL:http://localhost:8080/webhook/github}
   api:
     key: ${CODEAI_API_KEY:codeai-local-key}
   review:
     prompt-version: ${CLAUDE_PROMPT_VERSION:v3}
   jwt:
-    secret: ${JWT_SECRET:codeai-jwt-secret-key-must-be-at-least-256-bits-long-for-security}
+    secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
 
 claude:

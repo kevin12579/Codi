@@ -1,5 +1,6 @@
 package com.codeai.application.webhook
 
+import com.codeai.application.settings.SettingsUseCase
 import com.codeai.domain.pipeline.PipelineExecution
 import com.codeai.domain.pipeline.PipelineRepository
 import com.codeai.domain.repository.Repository
@@ -18,6 +19,7 @@ class WebhookProcessUseCase(
     private val repositoryRepository: RepositoryRepository,
     private val streamProducer: RedisStreamProducer,
     private val objectMapper: ObjectMapper,
+    private val settingsUseCase: SettingsUseCase,
     @Value("\${codeai.webhook.secret}") private val webhookSecret: String
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
@@ -38,6 +40,11 @@ class WebhookProcessUseCase(
                 )
             )
 
+        pipelineRepository.findActive(repo.id, pr.number)?.let { active ->
+            log.info("중복 Webhook 무시: repo=${repo.fullName}, PR#${pr.number} — 이미 실행 중인 파이프라인 존재 (id=${active.id})")
+            return active.id
+        }
+
         val execution = pipelineRepository.save(
             PipelineExecution(
                 repositoryId = repo.id,
@@ -54,10 +61,12 @@ class WebhookProcessUseCase(
             "prNumber" to pr.number.toString(),
             "repoFullName" to repo.fullName,
             "headSha" to pr.head.sha,
+            "headRef" to pr.head.ref,
             "prUrl" to pr.htmlUrl,
             "prTitle" to pr.title
         )
         streamProducer.publish(eventData).awaitSingle()
+        settingsUseCase.recordGithubConnection()
 
         log.info("Pipeline 생성: id=${execution.id}, repo=${repo.fullName}, PR#${pr.number}")
         return execution.id

@@ -20,7 +20,7 @@ class AuthUseCase(
             User(email = email, password = passwordEncoder.encode(password), name = name)
         )
         val token = jwtProvider.generate(user.id, user.email)
-        return AuthResult(token = token, userId = user.id, email = user.email, name = user.name)
+        return AuthResult(token = token, userId = user.id, email = user.email, name = user.name, createdAt = user.createdAt)
     }
 
     suspend fun login(email: String, password: String): AuthResult {
@@ -43,5 +43,6 @@ data class AuthResult(
     val token: String,
     val userId: Long,
     val email: String,
-    val name: String
+    val name: String,
+    val createdAt: java.time.LocalDateTime? = null
 )

@@ -6,6 +6,7 @@ import com.codeai.domain.pipeline.PipelineStep
 import com.codeai.domain.review.CodeReview
 import com.codeai.domain.review.ReviewComment
 import com.codeai.domain.testrun.TestRun
+import java.time.Duration
 import java.time.LocalDateTime
 
 data class PipelineListResponse(
@@ -17,6 +18,7 @@ data class PipelineListResponse(
 
 data class PipelineSummary(
     val id: Long,
+    val repositoryFullName: String,
     val prNumber: Int,
     val prTitle: String,
     val prAuthor: String,
@@ -27,7 +29,11 @@ data class PipelineSummary(
 ) {
     companion object {
         fun from(e: PipelineExecution) = PipelineSummary(
-            id = e.id, prNumber = e.prNumber, prTitle = e.prTitle,
+            id = e.id,
+            repositoryFullName = e.prUrl
+                .removePrefix("https://github.com/")
+                .substringBefore("/pull/"),
+            prNumber = e.prNumber, prTitle = e.prTitle,
             prAuthor = e.prAuthor, status = e.status.name,
             startedAt = e.startedAt, completedAt = e.completedAt,
             durationSeconds = e.durationSeconds
@@ -37,6 +43,7 @@ data class PipelineSummary(
 
 data class PipelineDetailResponse(
     val id: Long,
+    val repositoryFullName: String,
     val prNumber: Int,
     val prTitle: String,
     val prUrl: String,
@@ -56,12 +63,15 @@ data class StepSummary(
     val status: String,
     val startedAt: LocalDateTime?,
     val completedAt: LocalDateTime?,
+    val durationSeconds: Long?,
     val errorMessage: String?
 ) {
     companion object {
         fun from(s: PipelineStep) = StepSummary(
             stepType = s.stepType.name, status = s.status.name,
             startedAt = s.startedAt, completedAt = s.completedAt,
+            durationSeconds = if (s.startedAt != null && s.completedAt != null)
+                Duration.between(s.startedAt, s.completedAt).seconds else null,
             errorMessage = s.errorMessage
         )
     }

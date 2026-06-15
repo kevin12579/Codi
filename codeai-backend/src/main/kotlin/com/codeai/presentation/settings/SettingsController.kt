@@ -43,7 +43,7 @@ class SettingsController(private val settingsUseCase: SettingsUseCase) {
     @Operation(summary = "Claude API 설정 저장 (프롬프트 버전, 최대 토큰)")
     @PutMapping("/claude")
     suspend fun updateClaude(@RequestBody req: ClaudeSettingsRequest): ApiResponse<ClaudeSettingsResponse> =
-        ApiResponse.ok(settingsUseCase.updateClaude(req.promptVersion, req.maxTokens), "Claude 설정 저장 완료")
+        ApiResponse.ok(settingsUseCase.updateClaude(req.activePromptVersion, req.maxTokensPerReview), "Claude 설정 저장 완료")
 
     @Operation(summary = "GitHub 연동 레포지토리 목록 및 Webhook URL 조회")
     @GetMapping("/github")

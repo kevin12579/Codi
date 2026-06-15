@@ -16,7 +16,7 @@ data class PullRequestPayload(
     val user: UserPayload = UserPayload()
 )
 
-data class HeadPayload(val sha: String = "")
+data class HeadPayload(val sha: String = "", val ref: String = "")
 
 data class UserPayload(val login: String = "")
 

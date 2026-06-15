@@ -26,7 +26,7 @@ class DeployUseCase(
      * 리뷰 통과 + 테스트 통과 시 배포 워크플로우를 트리거합니다.
      * HIGH 이슈가 없고 테스트가 PASSED인 경우에만 배포합니다.
      */
-    suspend fun triggerIfEligible(pipelineExecutionId: Long, repoFullName: String, headSha: String): Boolean {
+    suspend fun triggerIfEligible(pipelineExecutionId: Long, repoFullName: String, ref: String): Boolean {
         val review = reviewRepository.findByPipelineExecutionId(pipelineExecutionId)
         val testRun = testRunRepository.findByPipelineExecutionId(pipelineExecutionId)
 
@@ -46,14 +46,14 @@ class DeployUseCase(
         val triggered = actionsClient.triggerDeploy(
             repoFullName = repoFullName,
             workflowId = workflowId,
-            ref = headSha,
+            ref = ref,
             inputs = mapOf("pipeline_id" to pipelineExecutionId.toString())
         )
 
         step = if (triggered) stepRepository.save(step.succeed())
                else stepRepository.save(step.fail("GitHub Actions 트리거 실패"))
 
-        log.info("배포 트리거 ${if (triggered) "완료" else "실패"}: pipelineId=$pipelineExecutionId")
+        log.info("배포 트리거 ${if (triggered) "완료" else "실패"}: pipelineId=$pipelineExecutionId, ref=$ref")
         return triggered
     }
 }

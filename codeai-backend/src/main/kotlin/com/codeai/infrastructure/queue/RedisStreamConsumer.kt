@@ -41,6 +41,7 @@ class RedisStreamConsumer(
                 val repoFullName = data["repoFullName"] ?: ""
                 val prNumber = data["prNumber"]?.toInt() ?: 0
                 val headSha = data["headSha"] ?: ""
+                val headRef = data["headRef"] ?: ""
                 val prUrl = data["prUrl"] ?: ""
                 val prTitle = data["prTitle"] ?: ""
 
@@ -71,7 +72,7 @@ class RedisStreamConsumer(
                         deployUseCase.triggerIfEligible(
                             pipelineExecutionId = pipelineExecutionId,
                             repoFullName = repoFullName,
-                            headSha = headSha
+                            ref = headRef.ifBlank { headSha }
                         )
 
                         ackMessage(record)

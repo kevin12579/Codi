@@ -53,4 +53,13 @@ class PipelineRepositoryImpl(
             val since = java.time.LocalDateTime.now().minusDays(days.toLong())
             jpa.findCompletedSince(since).map { it.toDomain() }
         }
+
+    override suspend fun findActive(repositoryId: Long, prNumber: Int): PipelineExecution? =
+        withContext(Dispatchers.IO) {
+            jpa.findFirstByRepositoryIdAndPrNumberAndStatusInOrderByCreatedAtDesc(
+                repositoryId,
+                prNumber,
+                listOf(PipelineStatus.PENDING, PipelineStatus.RUNNING)
+            )?.toDomain()
+        }
 }

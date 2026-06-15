@@ -21,49 +21,48 @@ class NotifyUseCase(
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
 
-    suspend fun onReviewCompleted(event: ReviewCompleted) {
-        val payload = SlackMessageBuilder.buildReviewMessage(event)
-        val messageText = objectMapper.writeValueAsString(payload)
+    suspend fun onReviewCompleted(event: ReviewCompleted) =
+        sendSlack(
+            pipelineExecutionId = event.pipelineExecutionId,
+            payload = SlackMessageBuilder.buildReviewMessage(event),
+            logTag = "Slack 알림"
+        )
 
-        var notification = notificationRepository.save(
+    suspend fun onTestRunCompleted(event: TestRunCompleted) =
+        sendSlack(
+            pipelineExecutionId = event.pipelineExecutionId,
+            payload = SlackMessageBuilder.buildTestRunMessage(event),
+            logTag = "테스트 결과 Slack 알림"
+        )
+
+    private suspend fun sendSlack(pipelineExecutionId: Long, payload: Map<String, Any>, logTag: String) {
+        val slackUrl = settingsStore.get("slack.webhook.url")
+        if (slackUrl.isNullOrBlank()) {
+            log.warn("$logTag 스킵: Slack Webhook URL 미설정 (pipelineId=$pipelineExecutionId)")
+            notificationRepository.save(
+                NotificationMessage(
+                    pipelineExecutionId = pipelineExecutionId,
+                    channel = NotificationChannel.SLACK,
+                    message = objectMapper.writeValueAsString(payload)
+                ).markFailed("Slack Webhook URL 미설정")
+            )
+            return
+        }
+
+        val notification = notificationRepository.save(
             NotificationMessage(
-                pipelineExecutionId = event.pipelineExecutionId,
+                pipelineExecutionId = pipelineExecutionId,
                 channel = NotificationChannel.SLACK,
-                message = messageText
+                message = objectMapper.writeValueAsString(payload)
             )
         )
 
-        val slackUrl = settingsStore.get("slack.webhook.url") ?: ""
         val sent = slackWebhookClient.send(payload, slackUrl)
-        notification = if (sent) {
-            notificationRepository.save(notification.markSent())
-        } else {
-            notificationRepository.save(notification.markFailed("Slack 발송 실패"))
-        }
-
-        log.info("Slack 알림 ${if (sent) "발송 완료" else "실패"}: pipelineId=${event.pipelineExecutionId}")
-    }
-
-    suspend fun onTestRunCompleted(event: TestRunCompleted) {
-        val payload = SlackMessageBuilder.buildTestRunMessage(event)
-        val messageText = objectMapper.writeValueAsString(payload)
-
-        var notification = notificationRepository.save(
-            NotificationMessage(
-                pipelineExecutionId = event.pipelineExecutionId,
-                channel = NotificationChannel.SLACK,
-                message = messageText
-            )
+        notificationRepository.save(
+            if (sent) notification.markSent()
+            else notification.markFailed("Slack 발송 실패")
         )
 
-        val slackUrl = settingsStore.get("slack.webhook.url") ?: ""
-        val sent = slackWebhookClient.send(payload, slackUrl)
-        notification = if (sent) {
-            notificationRepository.save(notification.markSent())
-        } else {
-            notificationRepository.save(notification.markFailed("Slack 발송 실패"))
-        }
-
-        log.info("테스트 결과 Slack 알림 ${if (sent) "발송 완료" else "실패"}: pipelineId=${event.pipelineExecutionId}")
+        log.info("$logTag ${if (sent) "발송 완료" else "실패"}: pipelineId=$pipelineExecutionId")
     }
 }

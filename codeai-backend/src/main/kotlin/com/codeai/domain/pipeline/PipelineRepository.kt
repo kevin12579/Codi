@@ -13,6 +13,7 @@ interface PipelineRepository {
     suspend fun countByStatus(status: PipelineStatus): Long
     suspend fun findRecent(limit: Int): List<PipelineExecution>
     suspend fun findCompletedSince(days: Int): List<PipelineExecution>
+    suspend fun findActive(repositoryId: Long, prNumber: Int): PipelineExecution?
 }
 
 data class PipelineExecutionPage(

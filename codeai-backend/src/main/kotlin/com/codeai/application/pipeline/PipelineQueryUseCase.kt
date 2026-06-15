@@ -46,7 +46,11 @@ class PipelineQueryUseCase(
             val notifications = notificationRepository.findByPipelineExecutionId(id)
 
             PipelineDetailResponse(
-                id = execution.id, prNumber = execution.prNumber,
+                id = execution.id,
+                repositoryFullName = execution.prUrl
+                    .removePrefix("https://github.com/")
+                    .substringBefore("/pull/"),
+                prNumber = execution.prNumber,
                 prTitle = execution.prTitle, prUrl = execution.prUrl,
                 prAuthor = execution.prAuthor, headSha = execution.headSha,
                 status = execution.status.name, startedAt = execution.startedAt,
