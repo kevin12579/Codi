@@ -30,6 +30,14 @@ object ClaudeReviewPrompt {
         - bin/, build/, out/, target/ 경로의 파일은 컴파일 산출물이므로 완전히 무시하세요.
         - diff의 "-"(삭제) 라인은 분석하지 마세요. "+"(추가) 라인만 분석하세요.
 
+        [오탐 방지 규칙 — HIGH 분류 전 반드시 확인]
+        - data class, domain 모델, entity의 필드 선언(val password: String 등)만 보고 "평문 저장"으로 판단하지 마세요.
+          같은 diff 안에 실제 평문 저장 코드(passwordEncoder 미사용)가 명확히 보여야만 HIGH입니다.
+        - application.yml, .env.example의 빈 문자열 기본값(예: url: "")은 보안 취약점이 아닙니다. 무시하세요.
+        - 설정값(webhook secret, API key)이 DB에 저장되는 패턴 자체는 HIGH가 아닙니다.
+          평문 하드코딩(소스코드에 실제 값 직접 삽입)만 HIGH로 분류하세요.
+        - diff가 전체 파일이 아닌 일부 청크일 수 있습니다. 보이지 않는 코드에 대해 가정하지 마세요.
+
         [심각도 기준 — 엄격히 적용]
         - HIGH: 실제 보안 취약점만 해당 (인증 우회, SQL Injection, 비밀번호 평문 저장, 민감 정보 소스코드 하드코딩).
                 성능 문제, 코드 스타일, 리팩토링 제안은 HIGH가 아닙니다.

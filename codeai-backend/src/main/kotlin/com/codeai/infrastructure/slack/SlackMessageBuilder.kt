@@ -6,8 +6,11 @@ import com.codeai.domain.event.TestRunCompleted
 object SlackMessageBuilder {
 
     fun buildTestRunMessage(event: TestRunCompleted): Map<String, Any> {
-        val status = if (event.passed) "✅ 테스트 통과" else "❌ 테스트 실패 (${event.failedCount}건)"
-        val color = if (event.passed) "#36a64f" else "#ff0000"
+        val (status, color) = when {
+            event.totalTests == 0 -> "⏭️ Playwright 테스트 스킵 (비활성화)" to "#aaaaaa"
+            event.passed          -> "✅ Playwright 테스트 통과" to "#36a64f"
+            else                  -> "❌ Playwright 테스트 실패 (${event.failedCount}건)" to "#ff0000"
+        }
         return mapOf(
             "text" to "코디(Code AI) 테스트 완료",
             "attachments" to listOf(
