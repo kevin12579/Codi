@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Check, Eye, EyeOff, Send } from 'lucide-react'
 
 const formatDate = (isoString) => {
@@ -28,6 +28,29 @@ export default function Settings() {
   const [activePromptVersion, setActivePromptVersion] = useState('v3')
   const [maxTokensPerReview, setMaxTokensPerReview] = useState(3000)
   const [claudeSaveMsg, setClaudeSaveMsg] = useState('')
+
+  // ─── GET /api/settings─────────────────────────────────────
+  useEffect(() => {
+  fetch('/api/settings')
+    .then(res => res.json())
+    .then(json => {
+      if (!json.success) return
+      const { github, slack, claude } = json.data
+
+      setGithubConnected(github.connected)
+      setGithubWebhookUrl(github.webhookUrl)
+      setGithubWebhookSecret(github.webhookSecret)
+      setGithubLastConnectedAt(github.lastConnectedAt)
+
+      setSlackConnected(slack.connected)
+      setSlackWebhookUrl(slack.webhookUrl)
+      setSlackLastTestedAt(slack.lastTestedAt)
+
+      setActivePromptVersion(claude.activePromptVersion)
+      setMaxTokensPerReview(claude.maxTokensPerReview)
+    })
+    .catch(err => console.error('settings fetch 실패:', err))
+}, [])
 
   // ─── PUT /api/settings/github ─────────────────────────────
   const saveGithub = async () => {

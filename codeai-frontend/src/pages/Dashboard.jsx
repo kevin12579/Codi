@@ -1,4 +1,5 @@
     import { GitFork, CheckCircle2, Activity, XCircle } from 'lucide-react';
+    import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts'
 
     // ─── 유틸 함수 ────────────────────────────────────────────────
     const formatDuration = (seconds) => {
@@ -95,6 +96,36 @@
             </div>
             </div>
         </div>
+
+        {/* 일별 실행 차트 */}
+        {stats?.dailyStats?.length > 0 && (
+        <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-4">
+            <h2 className="text-lg font-bold text-[#0f172a]">일별 파이프라인 실행 현황</h2>
+            <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={stats.dailyStats} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <defs>
+                <linearGradient id="colorSuccess" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="colorFailed" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+                <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} allowDecimals={false} />
+                <Tooltip
+                contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                labelStyle={{ fontWeight: 'bold', color: '#0f172a' }}
+                />
+                <Area type="monotone" dataKey="success" name="성공" stroke="#22c55e" strokeWidth={2} fill="url(#colorSuccess)" />
+                <Area type="monotone" dataKey="failed" name="실패" stroke="#ef4444" strokeWidth={2} fill="url(#colorFailed)" />
+            </AreaChart>
+            </ResponsiveContainer>
+        </div>
+        )}
 
         {/* 테이블 */}
         <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-6">

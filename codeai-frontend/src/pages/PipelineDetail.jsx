@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowLeft, GitFork, User, Calendar, Clock, CheckCircle2, XCircle, Bell, Copy, Check, Terminal } from 'lucide-react'
+import { ArrowLeft, GitFork, User, Calendar, Clock, CheckCircle2, XCircle, Bell, Copy, Check, Terminal, AlertTriangle, ShieldCheck, Activity } from 'lucide-react'
 
 // ─── 유틸 함수 ────────────────────────────────────────────────
 const formatDuration = (seconds) => {
@@ -14,12 +14,6 @@ const formatDate = (isoString) => {
   return new Date(isoString).toLocaleString('ko-KR')
 }
 
-const calcDuration = (startedAt, completedAt) => {
-  if (!startedAt || !completedAt) return '-'
-  const diff = Math.floor((new Date(completedAt) - new Date(startedAt)) / 1000)
-  return formatDuration(diff)
-}
-
 export default function PipelineDetail({ pipeline, allPipelines, onSelectPipeline, onBack }) {
   const [activeTab, setActiveTab] = useState('review')
   const [copiedId, setCopiedId] = useState(null)
@@ -32,302 +26,266 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
 
   const statusClass = (status) => {
     const s = status?.toUpperCase()
-    if (s === 'SUCCESS') return 'bg-[#e8f7ee] text-[#22c55e]'
-    if (s === 'FAILED')  return 'bg-[#fee2e2] text-[#ef4444]'
-    if (s === 'RUNNING') return 'bg-[#e6f0ff] text-[#0066ff]'
-    return 'bg-[#f1f5f9] text-slate-500'
+    if (s === 'SUCCESS') return 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+    if (s === 'FAILED') return 'bg-rose-50 text-rose-600 border border-rose-100'
+    return 'bg-blue-50 text-blue-600 border border-blue-100'
   }
 
-  // ─── API 필드 ────────────────────────────────────────────────
-  const duration = calcDuration(pipeline.startedAt, pipeline.completedAt)
-
-  const timelineSteps = (pipeline.steps || []).map(s => ({
-    name: s.stepType,
-    status: s.status,
-    duration: formatDuration(s.durationSeconds),
-  }))
-
-  const reviewComments = (pipeline.review?.comments || []).map((c, idx) => ({
-    id: idx,
-    severity: c.severity?.toLowerCase() || 'medium',
-    line: c.lineNumber,
-    title: c.filePath ? `${c.filePath} · Line ${c.lineNumber}` : `Line ${c.lineNumber}`,
-    description: c.content,
-    suggestion: c.suggestion,
-  }))
-
-  const testRun = pipeline.testRun || {}
-  const totalTests = testRun.totalTests ?? 0
-  const passedTests = testRun.passed ?? 0
-  const failedTests = testRun.failed ?? 0
-  const coverage = testRun.coveragePct ?? 0
-
-  const notifications = (pipeline.notifications || []).map(n => ({
-    channel: n.channel,
-    status: n.status,
-    time: formatDate(n.sentAt),
-    isFail: n.status === 'FAILED',
-    isSlack: n.channel === 'SLACK',
-    isGithub: n.channel === 'GITHUB',
-  }))
-
-  // ─── 타임라인 스텝 스타일 ────────────────────────────────────
-  const stepDot = (status) => {
-    const s = status?.toUpperCase()
-    if (s === 'SUCCESS') return (
-      <div className="w-[14px] h-[14px] rounded-full bg-[#e8f7ee] border border-[#22c55e] flex items-center justify-center">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
-      </div>
-    )
-    if (s === 'FAILED') return (
-      <div className="w-[14px] h-[14px] rounded-full bg-[#fee2e2] border border-[#ef4444] flex items-center justify-center">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444]" />
-      </div>
-    )
-    if (s === 'RUNNING') return (
-      <div className="w-[14px] h-[14px] rounded-full bg-[#e6f0ff] border border-[#0066ff] flex items-center justify-center">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#0066ff] animate-ping" />
-      </div>
-    )
-    return <div className="w-[14px] h-[14px] rounded-full bg-slate-100 border border-slate-300" />
+  const severityBadgeClass = (severity) => {
+    const s = severity?.toUpperCase()
+    if (s === 'HIGH') return 'bg-rose-100 text-rose-700 font-extrabold px-2.5 py-0.5 rounded text-[11px]'
+    if (s === 'MEDIUM') return 'bg-amber-100 text-amber-700 font-extrabold px-2.5 py-0.5 rounded text-[11px]'
+    return 'bg-slate-100 text-slate-600 font-extrabold px-2.5 py-0.5 rounded text-[11px]'
   }
 
   return (
-    <div className="space-y-6">
-      {/* 헤더 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#e2e8f0] pb-6">
-        <div className="space-y-2">
-          <button onClick={onBack} className="flex items-center space-x-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer">
-            <ArrowLeft size={30} />
-          </button>
-          <p></p><br />
-          <div className="flex items-center space-x-3">
-            <h1 className="text-3xl font-black text-[#0f172a] tracking-tight">{pipeline.id}</h1>
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusClass(pipeline.status)}`}>
+    // ✨ 충돌 원인이던 mx-auto와 max-w를 제거하고 기존 컨텍스트 흐름에 맞게 full 너비로 조정
+    <div className="w-full space-y-6 animate-fade-in text-left">
+      
+      {/* 상단 상위 네비게이션바 */}
+      <div className="flex items-center justify-between">
+        <button 
+          onClick={onBack}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all text-sm font-bold cursor-pointer"
+        >
+          <ArrowLeft size={16} /> 목록으로 돌아가기
+        </button>
+        <span className="text-xs font-semibold text-slate-400 font-mono tracking-wider bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+          ID: {pipeline.id}
+        </span>
+      </div>
+
+      {/* 헤더 섹션 카드 */}
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm space-y-5">
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md font-black border border-slate-200">
+              #{pipeline.prNumber || '0'}
+            </span>
+            <h2 className="text-xl font-black tracking-tight text-slate-900 leading-snug">
+              {pipeline.prTitle || '제목 없음'}
+            </h2>
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold tracking-wide ${statusClass(pipeline.status)}`}>
               {pipeline.status}
             </span>
-            <select
-              value={pipeline.id}
-              onChange={(e) => onSelectPipeline(e.target.value)}
-              className="ml-2 text-xs font-mono bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-[#0066ff] text-slate-600 cursor-pointer"
-            >
-              {allPipelines.map(p => (
-                <option key={p.id} value={p.id}>
-                  {p.id} · {p.status}
-                </option>
-              ))}
-            </select>
           </div>
-          <p className="text-sm font-semibold text-slate-400">{pipeline.repositoryFullName}</p>
+          
+          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold pl-0.5">
+            <GitFork size={14} className="text-slate-400" />
+            <span className="text-slate-700 font-mono">{pipeline.repositoryFullName || '레포지토리 정보 없음'}</span>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-x-6 gap-y-2 bg-white px-5 py-3 border border-[#e2e8f0] rounded-2xl text-xs font-medium text-slate-600">
-          <div className="flex items-center space-x-1.5">
-            <GitFork size={13} className="text-slate-400" />
-            <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded">{pipeline.headSha}</span>
+
+        {/* 메타 정보 그리드 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100"><User size={16} /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">작성자</p>
+              <p className="text-xs font-black text-slate-700">{pipeline.prAuthor || '-'}</p>
+            </div>
           </div>
-          <div className="flex items-center space-x-1.5">
-            <User size={13} className="text-slate-400" />
-            <span>{pipeline.prAuthor || '-'}</span>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100"><Calendar size={16} /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">시작 일시</p>
+              <p className="text-xs font-bold text-slate-700">{formatDate(pipeline.startedAt)}</p>
+            </div>
           </div>
-          <div className="flex items-center space-x-1.5">
-            <Calendar size={13} className="text-slate-400" />
-            <span>{formatDate(pipeline.startedAt)}</span>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100"><Clock size={16} /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">종료 일시</p>
+              <p className="text-xs font-bold text-slate-700">{pipeline.completedAt ? formatDate(pipeline.completedAt) : '진행 중'}</p>
+            </div>
           </div>
-          <div className="flex items-center space-x-1.5 font-bold text-slate-700">
-            <Clock size={13} className="text-[#0066ff]" />
-            <span>소요 시간: {duration}</span>
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 border border-slate-100"><Terminal size={16} /></div>
+            <div>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">소요 시간</p>
+              <p className="text-xs font-mono font-black text-slate-700">
+                {pipeline.startedAt && pipeline.completedAt ? formatDuration(Math.floor((new Date(pipeline.completedAt) - new Date(pipeline.startedAt)) / 1000)) : '-'}
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* 콘텐츠 */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* 타임라인 */}
-        <section className="lg:col-span-5 space-y-4">
-          <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm">
-            <h3 className="text-[13px] font-black text-slate-500 uppercase tracking-wider mb-6">파이프라인 타임라인</h3>
-            <div className="relative pl-6 space-y-8">
-              <div className="absolute left-[7px] top-2 bottom-2 w-[2px] bg-slate-100 z-0" />
-              {timelineSteps.map((step, idx) => (
-                <div key={idx} className="relative flex flex-col space-y-1">
-                  <div className="absolute -left-[25px] top-0.5 w-[14px] h-[14px] rounded-full flex items-center justify-center bg-white">
-                    {stepDot(step.status)}
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-slate-900">{step.name}</span>
-                    <span className="text-xs font-mono text-slate-400">{step.duration}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
+      {/* 탭 컨트롤러 */}
+      <div className="flex border-b border-slate-200 gap-2">
+        <button
+          onClick={() => setActiveTab('review')}
+          className={`px-4 py-2.5 text-sm font-black border-b-2 transition-all cursor-pointer tracking-tight ${
+            activeTab === 'review' ? 'border-[#0066ff] text-[#0066ff]' : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          AI Code Review
+        </button>
+        <button
+          onClick={() => setActiveTab('e2e')}
+          className={`px-4 py-2.5 text-sm font-black border-b-2 transition-all cursor-pointer tracking-tight ${
+            activeTab === 'e2e' ? 'border-[#0066ff] text-[#0066ff]' : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          Playwright E2E Test
+        </button>
+        <button
+          onClick={() => setActiveTab('notifications')}
+          className={`px-4 py-2.5 text-sm font-black border-b-2 transition-all cursor-pointer tracking-tight ${
+            activeTab === 'notifications' ? 'border-[#0066ff] text-[#0066ff]' : 'border-transparent text-slate-400 hover:text-slate-600'
+          }`}
+        >
+          알림 수신 내역
+        </button>
+      </div>
 
-        {/* 탭 영역 */}
-        <section className="lg:col-span-7 space-y-4">
-          <div className="bg-[#f1f5f9] p-1.5 rounded-2xl flex border border-[#e2e8f0]/40">
-            {['review', 'tests', 'logs'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2.5 text-center text-xs font-bold rounded-xl transition-all cursor-pointer ${
-                  activeTab === tab ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-600 hover:text-slate-950'
-                }`}
-              >
-                {tab === 'review' ? 'AI 리뷰 코멘트' : tab === 'tests' ? '테스트 결과' : '알림 내역'}
-              </button>
-            ))}
-          </div>
-
-          {/* AI 리뷰 탭 */}
-          {activeTab === 'review' && (
-            <div className="space-y-4">
-              {reviewComments.length > 0 ? (
-                reviewComments.map((comment) => (
-                  <div key={comment.id} className="bg-white border border-[#fef08a] rounded-2xl p-6 shadow-sm space-y-4">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <div className="flex items-center space-x-2">
-                          <span className="bg-[#fef08a]/40 text-[#a16207] text-[10px] font-bold px-2 py-0.5 rounded uppercase border border-[#fef08a]">
-                            {comment.severity.toUpperCase()}
-                          </span>
-                          <span className="text-xs font-mono font-bold text-slate-400">line:{comment.line}</span>
-                        </div>
-                        <h4 className="text-base font-bold text-slate-900 leading-snug mt-1">{comment.title}</h4>
-                      </div>
-                      <button
-                        onClick={() => copyToClipboard(comment.suggestion, comment.id)}
-                        className="p-2 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-500 cursor-pointer"
-                      >
-                        {copiedId === comment.id ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-                      </button>
+      {/* 탭 컨텐츠 영역 */}
+      <div className="pt-1 space-y-5">
+        
+        {/* 1️⃣ AI Code Review 탭 */}
+        {activeTab === 'review' && (
+          <div className="space-y-5">
+            {pipeline.codeReviews && pipeline.codeReviews.length > 0 ? (
+              pipeline.codeReviews.map((review, idx) => (
+                <div key={review.id || idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 transition-all hover:border-slate-300">
+                  
+                  <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 border-b border-slate-50">
+                    <div className="flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#0066ff]" />
+                      <h4 className="text-sm font-black text-slate-800 font-mono tracking-tight break-all">{review.filePath}</h4>
                     </div>
-                    <p className="text-xs leading-relaxed text-slate-600">{comment.description}</p>
-                    <div className="bg-[#f8fafc] border border-slate-200/60 rounded-xl p-4">
-                      <div className="flex items-center justify-between text-[11px] text-slate-400 font-mono mb-2">
-                        <span>해결 지침 및 수정 코드</span>
-                        <span>모범 구문 예시</span>
+                    <span className={severityBadgeClass(review.severity)}>
+                      {review.severity || 'LOW'}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-50 px-4 py-3.5 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed border-l-4 border-[#0066ff]">
+                    <p className="font-black text-slate-900 mb-1 flex items-center gap-1 text-[12px]">
+                      💡 Claude API 피드백
+                    </p>
+                    <p className="text-slate-600 font-medium">{review.comment}</p>
+                  </div>
+
+                  {review.suggestedCode && (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between px-0.5">
+                        <span className="text-[13px] font-bold text-slate-400 flex items-center gap-1 font-mono uppercase tracking-wider">
+                          <Terminal size={12} /> Suggested Fix
+                        </span>
+                        <button
+                          onClick={() => copyToClipboard(review.suggestedCode, review.id || idx)}
+                          className="flex items-center gap-1 text-[11px] font-bold text-[#0066ff] hover:text-blue-800 hover:underline cursor-pointer bg-blue-50/70 px-2 py-0.5 rounded-md transition-colors"
+                        >
+                          {copiedId === (review.id || idx) ? (
+                            <><Check size={20} /> 복사 완료</>
+                          ) : (
+                            <><Copy size={20} /></>
+                          )}
+                        </button>
                       </div>
-                      <pre className="text-xs font-mono text-[#0066ff] whitespace-pre overflow-x-auto leading-relaxed p-1.5">
-                        {comment.suggestion}
+                      <pre className="bg-[#0f172a] text-slate-200 px-5 py-4 rounded-xl font-mono text-xs overflow-x-auto border border-slate-800 shadow-lg leading-relaxed">
+                        <code>{review.suggestedCode}</code>
                       </pre>
                     </div>
-                  </div>
-                ))
-              ) : (
-                <div className="bg-white border border-[#e2e8f0] rounded-2xl p-12 text-center text-slate-500 space-y-2">
-                  <CheckCircle2 className="mx-auto text-emerald-500" size={32} />
-                  <h4 className="font-bold text-slate-900 text-sm">지정된 코드 결함 없음</h4>
+                  )}
                 </div>
-              )}
-              {pipeline.codeSnippet && (
-                <div className="bg-slate-950 rounded-2xl p-5 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between text-xs font-mono text-slate-400 border-b border-white/10 pb-2">
-                    <span className="flex items-center space-x-2 text-white">
-                      <Terminal size={13} className="text-[#0066ff]" />
-                      <span>소스코드 리스팅</span>
-                    </span>
-                    <span>{pipeline.id} Target File</span>
-                  </div>
-                  <pre className="text-[11.5px] font-mono text-[#f8fafc] overflow-x-auto leading-relaxed whitespace-pre">
-                    {pipeline.codeSnippet.split('\n').map((line, idx) => (
-                      <div key={idx} className="flex hover:bg-white/5 pr-2">
-                        <span className="w-8 opacity-30 select-none text-right pr-3 shrink-0">{idx + 1}</span>
-                        <span>{line}</span>
+              ))
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-sm">
+                <ShieldCheck size={36} className="text-emerald-500 mx-auto mb-2" />
+                <h4 className="font-black text-slate-900 text-sm">심각한 코드 결함 없음</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">Claude API 가 분석한 특이사항 및 결함 코드가 존재하지 않습니다.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 2️⃣ Playwright E2E Test 탭 */}
+        {activeTab === 'e2e' && (
+          <div className="space-y-5">
+            {pipeline.e2eTests && pipeline.e2eTests.length > 0 ? (
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                <div className="bg-slate-50/80 px-5 py-3.5 border-b border-slate-200 flex justify-between items-center">
+                  <span className="text-xs font-black text-slate-600 flex items-center gap-1.5">
+                    <Activity size={14} className="text-[#0066ff]" /> Docker Headless 통합 검증 결과
+                  </span>
+                  <span className="text-[10px] font-mono font-black bg-slate-200/80 px-2 rounded text-slate-600">
+                    Playwright Engine
+                  </span>
+                </div>
+                <div className="divide-y divide-slate-100">
+                  {pipeline.e2eTests.map((test, idx) => (
+                    <div key={test.id || idx} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/30 transition-colors">
+                      <div className="space-y-1 max-w-2xl">
+                        <p className="text-sm font-black text-slate-800">{test.testCaseName}</p>
+                        {test.errorMessage && (
+                          <pre className="text-[11px] font-mono text-rose-600 bg-rose-50 px-4 py-3 rounded-xl border border-rose-100 mt-2 overflow-x-auto leading-relaxed shadow-inner max-w-full">
+                            {test.errorMessage}
+                          </pre>
+                        )}
                       </div>
-                    ))}
-                  </pre>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 테스트 결과 탭 */}
-          {activeTab === 'tests' && (
-            <div className="space-y-6">
-              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-5">
-                <div className="flex items-center justify-between border-b border-[#f1f5f9] pb-3">
-                  <h4 className="text-sm font-black text-slate-900">테스트 결과</h4>
-                  <span className="text-xs font-mono font-medium text-slate-400">총 {totalTests}건</span>
-                </div>
-                <div className="grid grid-cols-3 gap-4 text-center">
-                  <div className="bg-slate-50 p-4 rounded-xl space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 tracking-wider flex items-center justify-center space-x-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e]" />
-                      <span>통과</span>
-                    </span>
-                    <h5 className="text-2xl font-black text-slate-900 font-mono mt-1">{passedTests}</h5>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-xl space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 tracking-wider flex items-center justify-center space-x-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#ef4444]" />
-                      <span>실패</span>
-                    </span>
-                    <h5 className="text-2xl font-black text-slate-900 font-mono mt-1">{failedTests}</h5>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-xl space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 tracking-wider flex items-center justify-center space-x-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#eab308]" />
-                      <span>건너뜀</span>
-                    </span>
-                    <h5 className="text-2xl font-black text-slate-900 font-mono mt-1">
-                      {totalTests - passedTests - failedTests}
-                    </h5>
-                  </div>
-                </div>
-              </div>
-              <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm flex items-center justify-between">
-                <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-[#0f172a]">전체 테스트 커버리지</h4>
-                  <p className="text-xs text-slate-400">코드라인 기준 적용 분량 비율</p>
-                </div>
-                <div className="flex items-center space-x-3 bg-[#e6f0ff]/50 px-4 py-2.5 rounded-2xl">
-                  <span className="font-mono text-lg font-black text-[#0066ff]">{coverage}%</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 알림 내역 탭 */}
-          {activeTab === 'logs' && (
-            <div className="space-y-4">
-              {notifications.length > 0 ? (
-                notifications.map((notif, idx) => (
-                  <div key={idx} className="bg-white border border-[#e2e8f0] rounded-2xl p-5 shadow-sm flex items-start justify-between gap-4">
-                    <div className="flex items-start space-x-4">
-                      {notif.isFail ? (
-                        <div className="w-9 h-9 rounded-full bg-red-100/80 flex items-center justify-center text-red-500 shrink-0">
-                          <XCircle size={16} />
-                        </div>
-                      ) : notif.isGithub ? (
-                        <div className="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 shrink-0">
-                          <Bell size={16} />
-                        </div>
-                      ) : notif.isSlack ? (
-                        <div className="w-9 h-9 rounded-full bg-blue-100/80 flex items-center justify-center text-blue-500 shrink-0">
-                          <Bell size={16} />
-                        </div>
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-green-100/80 flex items-center justify-center text-green-500 shrink-0">
-                          <CheckCircle2 size={16} />
-                        </div>
-                      )}
-                      <div className="space-y-0.5">
-                        <h4 className="text-sm font-bold text-slate-900">{notif.channel}</h4>
-                        <p className="text-xs text-slate-500">{notif.status}</p>
+                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                        <span className="font-mono text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{formatDuration(test.durationSeconds)}</span>
+                        {test.status?.toUpperCase() === 'PASSED' ? (
+                          <span className="flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
+                            <CheckCircle2 size={13} /> PASSED
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200">
+                            <XCircle size={13} /> FAILED
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <span className="font-mono text-xs text-slate-400 shrink-0 mt-0.5">{notif.time}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="bg-white border border-[#e2e8f0] rounded-2xl p-12 text-center text-slate-500">
-                  <h4 className="font-bold text-slate-900 text-sm">알림 내역 없음</h4>
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
-        </section>
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-sm">
+                <AlertTriangle size={36} className="text-amber-500 mx-auto mb-2" />
+                <h4 className="font-black text-slate-900 text-sm">E2E 테스트 기록 없음</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">수집된 Playwright 자동화 테스트 실행 내역이 없습니다.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 3️⃣ 알림 수신 내역 탭 */}
+        {activeTab === 'notifications' && (
+          <div className="space-y-3">
+            {pipeline.notifications && pipeline.notifications.length > 0 ? (
+              pipeline.notifications.map((notif, idx) => (
+                <div key={notif.id || idx} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm gap-4 hover:border-slate-300 transition-all">
+                  <div className="flex items-center space-x-3">
+                    {notif.channel?.toLowerCase().includes('slack') ? (
+                      <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500 shrink-0">
+                        <Bell size={16} />
+                      </div>
+                    ) : (
+                      <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-500 shrink-0">
+                        <CheckCircle2 size={16} />
+                      </div>
+                    )}
+                    <div className="space-y-0.5">
+                      <h4 className="text-sm font-black text-slate-900">{notif.channel || 'Slack 알림'}</h4>
+                      <p className="text-xs text-slate-500 font-semibold">{notif.status || '성공적으로 연동 메시지 발송'}</p>
+                    </div>
+                  </div>
+                  <span className="font-mono text-xs font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 shrink-0">
+                    {formatDate(notif.time || pipeline.completedAt)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-sm">
+                <Bell size={36} className="text-slate-300 mx-auto mb-2" />
+                <h4 className="font-black text-slate-900 text-sm">알림 발송 내역 없음</h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">외부 채널로 트리거된 웹훅 전송 로그가 없습니다.</p>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
     </div>
   )
