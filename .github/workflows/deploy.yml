@@ -1,0 +1,62 @@
+name: Deploy (Codi Pipeline)
+
+on:
+  workflow_dispatch:
+    inputs:
+      pipeline_id:
+        description: 'Codi 파이프라인 실행 ID'
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log deploy context
+        run: |
+          echo "Pipeline ID : ${{ github.event.inputs.pipeline_id }}"
+          echo "Triggered by: ${{ github.triggering_actor }}"
+          echo "Ref         : ${{ github.ref_name }}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & push backend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./codeai-backend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/codeai-backend:${{ github.sha }}
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./codeai-frontend
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/codeai-frontend:${{ github.sha }}
+
+      # ── 아래는 배포 서버 환경에 맞게 수정 ──────────────────────────────
+      # 예시: SSH로 서버에 접속해 docker-compose pull & up
+      - name: Deploy to server via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /opt/codeai
+            export TAG=${{ github.sha }}
+            docker compose pull api frontend
+            docker compose up -d api frontend
+            docker image prune -f
