@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Copy, ChevronRight, Loader2 } from 'lucide-react'
 
-import { SAMPLE_FILES, LANGUAGES, SAMPLE_CODE, MOCK_RESULT } from '../mockData' // 목업 데이터
+import { SAMPLE_FILES, LANGUAGES, SAMPLE_CODE, MOCK_RESULT, MOCK_RESULT_PAYMENT, MOCK_RESULT_GO } from '../mockData'
 
 // ─── 배지 색상 ────────────────────────────────────────────────
 const TYPE_STYLE = {
@@ -67,7 +67,13 @@ export default function CodeAnalysis() {
     setResult(null)
     setTimeout(() => {
       setStatus('done')
-      setResult(MOCK_RESULT)
+      if (selectedFile.id === 2) {
+        setResult(MOCK_RESULT_PAYMENT)
+      } else if (selectedFile.id === 3) {
+        setResult(MOCK_RESULT_GO)
+      } else {
+        setResult(MOCK_RESULT)
+      }
     }, 2200)
   }
 
@@ -93,7 +99,7 @@ export default function CodeAnalysis() {
               {SAMPLE_FILES.map((f) => (
                 <button
                   key={f.id}
-                  onClick={() => { setSelectedFile(f); setFilename(f.name) }}
+                  onClick={() => { setSelectedFile(f); setFilename(f.name); setCode(f.code) }}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition-colors ${
                     selectedFile.id === f.id
                       ? 'bg-[#0066ff] text-white font-semibold'

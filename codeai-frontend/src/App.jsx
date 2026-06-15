@@ -10,6 +10,8 @@ import Register from './pages/Register'
 import SessionManager from './pages/SessionManager'
 import { logout } from "./api/auth";
 import AccountSettings from "./pages/settings/AccountSettings";
+import CodiLogo from './LOGO1.png';
+
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -51,21 +53,22 @@ export default function App() {
     const authHeader = `Bearer ${savedToken}`;
 
     // 1) 통계 데이터 가져오기
-    fetch('/api/pipelines/stats', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader
-      }
-    })
-    .then(res => {
-      if (!res.ok) throw new Error('Stats 응답 에러');
-      return res.json();
-    })
-    .then(data => {
-      if (data.success) setStats(data.data);
-    })
-    .catch(err => console.error('stats fetch 실패:', err));
+fetch('/api/pipelines/stats', {
+  method: 'GET',
+  headers: {
+    'Content-Type': 'application/json',
+    'Authorization': authHeader
+  }
+})
+.then(res => {
+  if (!res.ok) throw new Error('Stats 응답 에러');
+  return res.json();
+})
+.then(data => {
+  console.log('stats 응답:', data);  // ← 이 줄 추가
+  if (data.success) setStats(data.data);
+})
+.catch(err => console.error('stats fetch 실패:', err));
 
     // 2) 파이프라인 목록 가져오기
     fetch('/api/pipelines', {
@@ -136,20 +139,21 @@ export default function App() {
     );
   }
 
-  return (
+return (
     <SessionManager onTimeout={handleSystemLogout}>
       {({ timeLeft, formatTime }) => (
         <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans antialiased flex w-screen">
           {/* 사이드바 */}
           <aside className="w-64 bg-white border-r border-[#e2e8f0] flex flex-col justify-between shrink-0 sticky top-0 h-screen z-20">
             <div className="flex flex-col flex-1">
-              <div
-                onClick={() => setActiveTab('dashboard')}
-                className="px-6 py-6 border-b border-[#f1f5f9] flex items-center cursor-pointer hover:bg-slate-50 transition-colors"
-              >
-                <div className="w-9 h-9 rounded-xl bg-[#0066ff] flex items-center justify-center text-white font-bold text-lg shrink-0">C</div>
-                <span className="ml-3 font-bold text-lg tracking-tight text-[#0f172a]">Code AI</span>
-              </div>
+
+{/* 로고 영역 */}
+<div 
+  className="px-6 py-5 border-b border-[#f1f5f9] flex items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors"
+  onClick={() => setActiveTab('dashboard')}
+>
+  <img src={CodiLogo} alt="Codi 로고" className="w-36 h-auto object-contain" />
+</div>
 
               <nav className="px-4 py-6 space-y-1.5 flex-1">
                 <button

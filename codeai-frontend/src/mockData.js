@@ -1,5 +1,3 @@
-
-
 export const INITIAL_PIPELINES = [
   {
     id: "PIPE-001-001",
@@ -178,13 +176,7 @@ app.get('/api/v1/health', (req, res) => {
 // ─── 실시간 코드 분석 목업 데이터 ────────────────────────────────────────────
 export const LANGUAGES = ['TypeScript', 'Python', 'Go', 'JavaScript', 'Java', 'Kotlin']
 
-export const SAMPLE_FILES = [
-  { id: 1, name: 'UserService.ts', label: '로그인 및 인증' },
-  { id: 2, name: 'paymentProcessor.py', label: '결제 트랜잭션' },
-  { id: 3, name: 'dataStore.go', label: '동시성 맵 카운터' },
-]
-
-
+// ⚠️ SAMPLE_CODE를 SAMPLE_FILES보다 먼저 선언 (호이스팅 에러 방지)
 export const SAMPLE_CODE = `import bcrypt from 'bcrypt';
 import db from './database';
 
@@ -210,6 +202,76 @@ export async function loginUser(req, res) {
     res.json({ error: "패스워드가 일치하지 않습니다." });
   }
 }`
+
+export const SAMPLE_FILES = [
+  {
+    id: 1,
+    name: 'UserService.ts',
+    label: '로그인 및 인증',
+    code: SAMPLE_CODE,
+  },
+  {
+    id: 2,
+    name: 'paymentProcessor.py',
+    label: '결제 트랜잭션',
+    code: `import requests
+
+def process_payment(user_id, amount, card_number):
+    # ⚠️ 카드 정보 평문 로깅
+    print(f"결제 시도: user={user_id}, card={card_number}, amount={amount}")
+
+    # ⚠️ 금액 검증 없이 바로 외부 API 호출
+    response = requests.post(
+        "https://payment-gateway.example.com/charge",
+        data={"card": card_number, "amount": amount}
+    )
+
+    if response.status_code == 200:
+        # ⚠️ 트랜잭션 결과 검증 없이 바로 성공 처리
+        update_balance(user_id, amount)
+        return {"status": "success"}
+    else:
+        return {"status": "failed"}
+
+def update_balance(user_id, amount):
+    # ⚠️ 동시성 문제: 락 없이 잔액 갱신
+    balance = get_balance(user_id)
+    set_balance(user_id, balance - amount)`,
+  },
+  {
+    id: 3,
+    name: 'dataStore.go',
+    label: '동시성 맵 카운터',
+    code: `package main
+
+import "fmt"
+
+type Counter struct {
+    counts map[string]int
+}
+
+func NewCounter() *Counter {
+    return &Counter{counts: make(map[string]int)}
+}
+
+// ⚠️ 동시성 환경에서 맵 접근 시 race condition 발생 가능
+func (c *Counter) Increment(key string) {
+    c.counts[key]++
+}
+
+func (c *Counter) Get(key string) int {
+    return c.counts[key]
+}
+
+func main() {
+    counter := NewCounter()
+    for i := 0; i < 100; i++ {
+        go counter.Increment("requests") // ⚠️ goroutine에서 동시 쓰기
+    }
+    fmt.Println(counter.Get("requests"))
+}`,
+  },
+]
 
 export const MOCK_RESULT = {
   filename: 'UserService.ts',
@@ -285,6 +347,152 @@ export async function loginUser(req: Request, res: Response) { ... }`,
       description:
         "'사용자를 찾을 수 없습니다'와 '패스워드가 일치하지 않습니다'라는 상이한 에러 메시지를 분기하여 클라이언트에 응답하고 있습니다. 이는 공격자에게 서비스에 존재하는 가입 계정 목록을 추적(Username Enumeration)할 수 있는 빌미를 제공합니다.",
       fix: `// 보안 강화를 위해 로그인 실패 시 동일하게 '아이디 또는 비밀번호가 잘못되었습니다.'와 같이 추상화된 메시지를 제공하는 것이 안전합니다.`,
+    },
+  ],
+}
+
+export const MOCK_RESULT_PAYMENT = {
+  filename: 'paymentProcessor.py',
+  score: 42,
+  scoreColor: '#ef4444',
+  summary:
+    'paymentProcessor.py는 결제 처리 로직에서 다수의 보안 및 안정성 문제를 내포하고 있습니다. 주요 문제점으로 (1) 카드 정보 평문 로깅, (2) 외부 API 응답 검증 미흡, (3) 동시성 환경에서의 잔액 갱신 race condition 등이 식별되었습니다.',
+  critical: 2,
+  warning: 1,
+  info: 1,
+  issues: [
+    {
+      id: 1,
+      type: 'critical',
+      typeLabel: '치명적 위험',
+      line: 5,
+      title: '카드 정보 평문 로깅 노출',
+      description:
+        "카드 번호(card_number)를 print()를 통해 그대로 로그에 기록하고 있습니다. PCI-DSS 규정 위반이며, 로그 유출 시 카드 정보가 그대로 노출됩니다.",
+      fix: `// 카드 번호 등 민감 정보는 절대 로그에 남기지 않고, 마스킹 처리합니다.
+
+수정 예시:
+masked = card_number[:4] + "****" + card_number[-4:]
+print(f"결제 시도: user={user_id}, card={masked}, amount={amount}")`,
+    },
+    {
+      id: 2,
+      type: 'critical',
+      typeLabel: '치명적 위험',
+      line: 14,
+      title: '외부 API 응답 검증 부족',
+      description:
+        "response.status_code == 200만 확인하고 응답 바디(트랜잭션 ID, 실제 승인 여부 등)를 검증하지 않습니다. 게이트웨이가 200을 반환했더라도 실제 결제가 실패했을 수 있습니다.",
+      fix: `// 응답 바디의 트랜잭션 상태 필드까지 함께 검증합니다.
+
+수정 예시:
+data = response.json()
+if response.status_code == 200 and data.get("transaction_status") == "approved":
+    update_balance(user_id, amount)
+    return {"status": "success", "tx_id": data.get("tx_id")}`,
+    },
+    {
+      id: 3,
+      type: 'warning',
+      typeLabel: '경고 요소',
+      line: 21,
+      title: '잔액 갱신 시 동시성(Race Condition) 위험',
+      description:
+        "get_balance와 set_balance 사이에 락(lock)이나 트랜잭션 처리가 없어, 동시에 여러 요청이 들어오면 잔액이 잘못 계산될 수 있습니다.",
+      fix: `// DB 트랜잭션 또는 원자적(atomic) 연산을 사용합니다.
+
+수정 예시:
+with db.transaction():
+    db.execute(
+        "UPDATE accounts SET balance = balance - %s WHERE user_id = %s",
+        [amount, user_id]
+    )`,
+    },
+    {
+      id: 4,
+      type: 'info',
+      typeLabel: '개선 의견',
+      line: 1,
+      title: '환경 변수를 통한 결제 게이트웨이 URL 관리 권장',
+      description:
+        "결제 게이트웨이 URL이 하드코딩되어 있습니다. 환경별(개발/스테이징/프로덕션)로 다른 엔드포인트를 사용할 수 있도록 환경 변수로 관리하는 것이 좋습니다.",
+      fix: `// 환경 변수를 통해 URL을 주입받습니다.
+
+수정 예시:
+import os
+PAYMENT_GATEWAY_URL = os.environ["PAYMENT_GATEWAY_URL"]`,
+    },
+  ],
+}
+
+export const MOCK_RESULT_GO = {
+  filename: 'dataStore.go',
+  score: 58,
+  scoreColor: '#f59e0b',
+  summary:
+    'dataStore.go는 다수의 goroutine이 동시에 맵(map)에 접근하는 구조로, Go의 map은 동시 쓰기에 대해 안전하지 않습니다. race condition으로 인한 데이터 손상 및 런타임 패닉(fatal error: concurrent map writes) 위험이 있습니다.',
+  critical: 1,
+  warning: 1,
+  info: 1,
+  issues: [
+    {
+      id: 1,
+      type: 'critical',
+      typeLabel: '치명적 위험',
+      line: 17,
+      title: '동시성 맵 쓰기로 인한 Race Condition',
+      description:
+        "여러 goroutine이 동시에 c.counts[key]++ 를 실행하고 있습니다. Go의 기본 map은 동시 쓰기에 안전하지 않아 'fatal error: concurrent map writes' 런타임 패닉이 발생할 수 있습니다.",
+      fix: `// sync.Mutex 또는 sync.Map을 사용해 동시 접근을 보호합니다.
+
+수정 예시:
+type Counter struct {
+    mu     sync.Mutex
+    counts map[string]int
+}
+
+func (c *Counter) Increment(key string) {
+    c.mu.Lock()
+    defer c.mu.Unlock()
+    c.counts[key]++
+}`,
+    },
+    {
+      id: 2,
+      type: 'warning',
+      typeLabel: '경고 요소',
+      line: 26,
+      title: 'goroutine 완료 대기 누락',
+      description:
+        "main 함수에서 100개의 goroutine을 실행하지만, 이들이 완료되기를 기다리는 동기화 로직(WaitGroup 등)이 없습니다. 메인 함수가 먼저 끝나면 일부 goroutine이 실행되지 못한 채 종료될 수 있습니다.",
+      fix: `// sync.WaitGroup으로 모든 goroutine의 완료를 보장합니다.
+
+수정 예시:
+var wg sync.WaitGroup
+for i := 0; i < 100; i++ {
+    wg.Add(1)
+    go func() {
+        defer wg.Done()
+        counter.Increment("requests")
+    }()
+}
+wg.Wait()`,
+    },
+    {
+      id: 3,
+      type: 'info',
+      typeLabel: '개선 의견',
+      line: 7,
+      title: 'sync.Map 도입 검토 권장',
+      description:
+        "단순 카운터 용도라면 atomic 패키지의 Int64나 sync/atomic 연산을 활용하는 것이 mutex보다 더 가벼운 대안이 될 수 있습니다.",
+      fix: `// 단일 카운터라면 atomic 패키지를 고려합니다.
+
+수정 예시:
+import "sync/atomic"
+
+var counter int64
+atomic.AddInt64(&counter, 1)`,
     },
   ],
 }

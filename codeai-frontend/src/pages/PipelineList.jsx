@@ -1,7 +1,6 @@
     import { useState, useEffect } from 'react'
     import { Search } from 'lucide-react'
 
-
     // ─── 유틸 함수 ────────────────────────────────────────────────
     const formatDuration = (seconds) => {
     if (!seconds) return '-'
@@ -19,10 +18,9 @@
     const [pipelines, setPipelines] = useState([])
     const [searchTerm, setSearchTerm] = useState('')
     const [loading, setLoading] = useState(false)
-
-    // ─── 검색 결과 함수 ────────────────────────────────────────────────     
     const [error, setError] = useState(false)
 
+    const savedToken = localStorage.getItem("authToken")
 
     // 상태 배지 스타일 함수
     const statusBadgeClass = (status) => {
@@ -33,18 +31,20 @@
         return 'bg-slate-50 text-slate-600'
     }
 
-    // ─── API 연동 로직 (Debounce 적용) ──────────────────────────
+    // ─── API 연동 로직: 최초 1회 전체 목록 로드 ──────────────
     useEffect(() => {
         const fetchPipelines = async () => {
         setLoading(true)
         try {
-            // 서버 쿼리 파라미터 구성
-            const query = searchTerm ? `?repositoryId=${searchTerm}` : ''
-            const response = await fetch(`/api/pipelines${query}`)
+            const response = await fetch('/api/pipelines', {
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${savedToken}`
+            }
+            })
             const result = await response.json()
-            
+
             if (result.success) {
-            // 서버 응답 구조(data.content)에 따라 상태 업데이트
             setPipelines(result.data.content)
             }
         } catch (err) {
@@ -55,9 +55,20 @@
         }
         }
 
-        const timer = setTimeout(fetchPipelines, 500)
-        return () => clearTimeout(timer)
-    }, [searchTerm])
+        fetchPipelines()
+    }, [])
+
+    // ─── 클라이언트 사이드 검색 필터링 ──────────────
+    const filteredPipelines = pipelines.filter((p) => {
+    if (!searchTerm) return true
+    const term = searchTerm.toLowerCase()
+    return (
+        String(p.id).includes(term) ||
+        (p.repositoryFullName ?? '').toLowerCase().includes(term) ||
+        (p.prAuthor ?? '').toLowerCase().includes(term) ||
+        (p.prTitle ?? '').toLowerCase().includes(term)
+    )
+    })
 
     return (
         <div className="space-y-6">
@@ -68,7 +79,7 @@
             <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
             <input
                 type="text"
-                placeholder="ID 또는 저장소 검색..."
+                placeholder="ID, 저장소, 작성자, PR 제목 검색..."
                 className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#0066ff] w-64"
                 onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -94,8 +105,8 @@
                 <tr>
                     <td colSpan={7} className="px-6 py-16 text-center text-sm text-slate-400">데이터를 불러오는 중...</td>
                 </tr>
-                ) : pipelines.length > 0 ? (
-                pipelines.map((p) => (
+                ) : filteredPipelines.length > 0 ? (
+                filteredPipelines.map((p) => (
                     <tr
                     key={p.id}
                     onClick={() => onSelectPipeline(p.id)}

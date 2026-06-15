@@ -18,6 +18,8 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
   const [activeTab, setActiveTab] = useState('review')
   const [copiedId, setCopiedId] = useState(null)
 
+  console.log('pipeline 데이터:', pipeline)
+
   const copyToClipboard = (text, id) => {
     navigator.clipboard.writeText(text)
     setCopiedId(id)

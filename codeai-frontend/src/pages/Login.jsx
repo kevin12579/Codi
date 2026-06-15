@@ -1,5 +1,8 @@
 import React, { useState } from "react";
 import { login } from "../api/auth";
+import CodiLogo from "../LOGO1.png";
+
+
 
 const REGISTERED_USERS_KEY = "registeredUsers";
 
@@ -154,16 +157,15 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
         }
     };
 
-    return (
+return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-[#f8fafc] px-4 w-screen h-screen select-none font-sans antialiased relative">
             
-            <div className="mb-8 text-center">
-                <h1 
-                    onClick={() => window.location.reload()} 
-                    className="text-4xl font-black tracking-tight text-[#0066ff] cursor-pointer"
-                >
-                    Code AI
-                </h1>
+            {/* 로고 영역 */}
+            <div 
+            className="px-6 py-5 border-b border-[#f1f5f9] flex items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors"
+            onClick={() => setActiveTab('dashboard')}
+            >
+            <img src={CodiLogo} alt="Codi 로고" className="w-36 h-auto object-contain" />
             </div>
 
             <div className="w-full max-w-[460px] rounded-2xl border border-[#e2e8f0] bg-white p-8 shadow-sm">

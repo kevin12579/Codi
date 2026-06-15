@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { logout } from "../../api/auth";
-import { Lock, AlertTriangle } from 'lucide-react'; // 👈 아이콘 추가
+import { Lock, AlertTriangle } from 'lucide-react'; 
 
 const formatDate = (timestamp) => {
     if (!timestamp) return '-'
