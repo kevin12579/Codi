@@ -156,8 +156,9 @@ const simulateNextServers = (currentServers) => {
     let next = currentServers.map((server, idx) => {
         const statusChanged = Math.random() < 0.28
         const nextStatus = statusChanged ? randomStatus() : server.status
-        const toolDelta = nextStatus === 'connected' ? Math.floor(Math.random() * 3) : -Math.floor(Math.random() * 2)
-        const nextTools = Math.max(1, server.tools + toolDelta)
+        // Avoid reducing connected tool count during passive auto-refresh.
+        const toolDelta = nextStatus === 'connected' ? Math.floor(Math.random() * 3) : 0
+        const nextTools = Math.max(server.tools, server.tools + toolDelta)
         const serverChanged = statusChanged || nextTools !== server.tools
         if (serverChanged) changed += 1
 
@@ -190,11 +191,7 @@ const simulateNextServers = (currentServers) => {
         changed += 1
     }
 
-    if (next.length > 1 && Math.random() < 0.12) {
-        const removeIndex = Math.floor(Math.random() * next.length)
-        next = next.filter((_, idx) => idx !== removeIndex)
-        changed += 1
-    }
+    // Do not auto-remove servers. Removal should be an explicit user action.
 
     return { next, changed }
 }
@@ -373,6 +370,12 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
         }, 10000)
         return () => clearInterval(interval)
     }, [isAutoRefresh, isActive, runRefresh])
+
+    useEffect(() => {
+        if (!isActive) return
+        // Refresh once when entering this tab/mode so users see up-to-date state immediately.
+        runRefresh()
+    }, [isActive, mode, runRefresh])
 
     useEffect(() => {
         if (isActive) return undefined

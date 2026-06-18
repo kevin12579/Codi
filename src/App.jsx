@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { INITIAL_PIPELINES } from './mockData'
 import Dashboard from './pages/Dashboard'
@@ -21,7 +21,6 @@ const ACTIVE_TAB_STORAGE_KEY = 'codeaiActiveTabV1'
 const LEGACY_TAB_ALIAS = {
   'workflow-dashboard': 'pipeline-stats',
   'event-log': 'connector-hub',
-  'settings-system': 'settings-profile',
   'settings-account': 'settings-profile',
 }
 
@@ -34,6 +33,7 @@ const ALLOWED_TABS = new Set([
   'pipeline-stats',
   'settings-profile',
   'settings-repositories',
+  'settings-system',
 ])
 
 const normalizeTabKey = (tab) => LEGACY_TAB_ALIAS[tab] || tab
@@ -67,7 +67,7 @@ const toPipelineCard = (item) => {
     branch: item.headBranch || item.branch || '-',
     triggered: item.startedAt ? new Date(item.startedAt).toLocaleString('ko-KR') : '-',
     status: toUiStatus(item.status),
-    timing: typeof item.durationSeconds === 'number' ? `${item.durationSeconds}초ㄹ` : '-',
+    timing: typeof item.durationSeconds === 'number' ? `${item.durationSeconds}초` : '-',
     commit: item.prNumber ? String(item.prNumber) : '-',
     commentCount: 0,
     codeSnippet: '',
@@ -91,6 +91,42 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(() => getInitialActiveTab().startsWith('settings'))
   const [currentUser, setCurrentUser] = useState({ username: '사용자', email: 'user@example.com' })
 
+  const loadPipelines = useCallback(async () => {
+    if (!apiEnabled) {
+      setPipelineDataSource('mock')
+      setPipelines(INITIAL_PIPELINES)
+      setSelectedPipelineId((prev) => prev || INITIAL_PIPELINES[0]?.id || null)
+      return
+    }
+
+    try {
+      setIsPipelinesLoading(true)
+      const result = await getPipelines({ page: 0, size: 50 })
+      const content = Array.isArray(result?.data?.content) ? result.data.content : []
+      const mapped = content.map(toPipelineCard).filter(Boolean)
+
+      if (mapped.length === 0) {
+        setPipelineDataSource('mock')
+        setPipelines(INITIAL_PIPELINES)
+        setSelectedPipelineId((prev) => prev || INITIAL_PIPELINES[0]?.id || null)
+        return
+      }
+
+      setPipelines(mapped)
+      setSelectedPipelineId((prev) => {
+        if (prev && mapped.some((item) => String(item.id) === String(prev))) return prev
+        return mapped[0]?.id || null
+      })
+      setPipelineDataSource('api')
+    } catch {
+      setPipelines(INITIAL_PIPELINES)
+      setSelectedPipelineId((prev) => prev || INITIAL_PIPELINES[0]?.id || null)
+      setPipelineDataSource('mock')
+    } finally {
+      setIsPipelinesLoading(false)
+    }
+  }, [apiEnabled])
+
   useEffect(() => {
     const user = getCurrentUser();
     if (user) {
@@ -112,51 +148,20 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoggedIn) return
+    loadPipelines()
+  }, [isLoggedIn, loadPipelines])
 
-    if (!apiEnabled) {
-      setPipelineDataSource('mock')
-      setPipelines(INITIAL_PIPELINES)
-      setSelectedPipelineId((prev) => prev || INITIAL_PIPELINES[0]?.id || null)
-      return
-    }
-
-    let mounted = true
-
-    const loadPipelines = async () => {
-      try {
-        setIsPipelinesLoading(true)
-        const result = await getPipelines({ page: 0, size: 50 })
-        const content = Array.isArray(result?.data?.content) ? result.data.content : []
-        const mapped = content.map(toPipelineCard).filter(Boolean)
-
-        if (!mounted) return
-
-        if (mapped.length === 0) {
-          setPipelineDataSource('mock')
-          setPipelines(INITIAL_PIPELINES)
-          setSelectedPipelineId((prev) => prev || INITIAL_PIPELINES[0]?.id || null)
-          return
-        }
-
-        setPipelines(mapped)
-        setSelectedPipelineId((prev) => prev || mapped[0]?.id || null)
-        setPipelineDataSource('api')
-      } catch {
-        if (mounted) {
-          setPipelines(INITIAL_PIPELINES)
-          setSelectedPipelineId((prev) => prev || INITIAL_PIPELINES[0]?.id || null)
-          setPipelineDataSource('mock')
-        }
-      } finally {
-        if (mounted) setIsPipelinesLoading(false)
-      }
-    }
+  useEffect(() => {
+    if (!isLoggedIn) return
+    if (!activeTab.startsWith('pipeline')) return
 
     loadPipelines()
-    return () => {
-      mounted = false
-    }
-  }, [isLoggedIn, apiEnabled])
+    const interval = setInterval(() => {
+      loadPipelines()
+    }, 10000)
+
+    return () => clearInterval(interval)
+  }, [activeTab, isLoggedIn, loadPipelines])
 
   const handleSelectPipeline = async (id) => {
     setSelectedPipelineId(id)
@@ -319,6 +324,12 @@ export default function App() {
                       >
                         레포지토리 관리
                       </button>
+                      <button
+                        onClick={() => setActiveTab('settings-system')}
+                        className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'settings-system' ? 'text-[#0066ff]' : 'text-slate-500 hover:text-[#0066ff]'}`}
+                      >
+                        시스템 설정
+                      </button>
                     </div>
                   )}
                 </div>
@@ -380,7 +391,9 @@ export default function App() {
 
             {activeTab === 'mcp-hub' && <MCPHub isActive mode="mcp" />}
 
-            {activeTab === 'pipeline-stats' && <WorkflowDashboard isActive />}
+            <div className={activeTab === 'pipeline-stats' ? '' : 'hidden'}>
+              <WorkflowDashboard isActive={activeTab === 'pipeline-stats'} />
+            </div>
 
             {activeTab === 'pipeline-list' && <PipelineList pipelines={pipelines} onSelectPipeline={handleSelectPipeline} />}
             {activeTab === 'pipeline-detail' && (

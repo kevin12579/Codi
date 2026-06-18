@@ -296,24 +296,16 @@ import {
     }, [])
 
     useEffect(() => {
-        if (!isAutoRefresh || !isActive) return undefined
+        if (!isAutoRefresh) return undefined
         runRefresh()
         const timer = setInterval(() => runRefresh(), 12000)
         return () => clearInterval(timer)
-    }, [isAutoRefresh, isActive, runRefresh])
+    }, [isAutoRefresh, runRefresh])
 
     useEffect(() => {
-        if (isActive) return undefined
-
-        if (refreshTimerRef.current) {
-        clearTimeout(refreshTimerRef.current)
-        refreshTimerRef.current = null
-        }
-
-        refreshInFlightRef.current = false
-        setIsRefreshing(false)
-        return undefined
-    }, [isActive])
+        if (!isActive) return
+        runRefresh()
+    }, [isActive, runRefresh])
 
     useEffect(() => {
         return () => {
