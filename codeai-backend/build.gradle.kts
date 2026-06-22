@@ -17,11 +17,30 @@ java {
 
 repositories {
     mavenCentral()
+    // Spring AI MCP (마일스톤 릴리스 — GA 아님)
+    maven { url = uri("https://repo.spring.io/milestone") }
 }
+
+// Spring AI BOM (MCP 스타터 버전 정렬)
+extra["springAiVersion"] = "2.0.0-M6"
+
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.ai:spring-ai-bom:${property("springAiVersion")}")
+    }
+}
+
 
 dependencies {
     // Spring Boot WebFlux (비동기 Reactive)
     implementation("org.springframework.boot:spring-boot-starter-webflux")
+
+    // Spring AI MCP Server (Streamable HTTP, WebFlux) — V1 신규
+    implementation("org.springframework.ai:spring-ai-starter-mcp-server-webflux")
+    // MCP 의 Jackson 3 매퍼(tools.jackson)는 jackson-annotations 2.21 의 JsonSerializeAs 가 필요.
+    // Spring Boot 3.2.5 BOM 은 2.15.4 로 고정하므로 명시적 버전으로 덮어쓴다.
+    // (jackson-databind 는 2.15.4 유지 → 기존 앱 Jackson2 동작 불변, annotations 는 상위호환)
+    implementation("com.fasterxml.jackson.core:jackson-annotations:2.21")
 
     // Spring Data JPA + PostgreSQL
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")

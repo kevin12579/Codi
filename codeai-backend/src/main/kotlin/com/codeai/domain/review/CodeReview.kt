@@ -6,6 +6,7 @@ data class CodeReview(
     val id: Long = 0,
     val pipelineExecutionId: Long,
     val status: ReviewStatus = ReviewStatus.PENDING,
+    val engineId: String = "claude",
     val promptVersion: String = "v3",
     val totalIssues: Int = 0,
     val highCount: Int = 0,

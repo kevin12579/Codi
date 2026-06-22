@@ -33,7 +33,10 @@ class SecurityConfig(
                         "/api/auth/register",
                         "/api/auth/signup",
                         "/api/auth/login",
-                        "/webhook/github",
+                        // P7: /webhook/{provider} 하위호환 (HMAC 서명검증이 게이트). V1=github.
+                        "/webhook/**",
+                        // Phase 6: /mcp 는 토큰 보호(아래 anyExchange().authenticated()로 JWT 요구).
+                        //          외부 AI 클라이언트는 Authorization: Bearer <JWT> 로 접속한다(IA문서 §4).
                         "/actuator/health",
                         "/actuator/health/**",
                         "/swagger-ui.html",

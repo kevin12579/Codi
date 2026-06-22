@@ -5,7 +5,17 @@ import java.time.LocalDateTime
 data class AllSettingsResponse(
     val github: GithubSettingsResponse,
     val slack: SlackSettingsResponse,
-    val claude: ClaudeSettingsResponse
+    val claude: ClaudeSettingsResponse,
+    val connectors: ConnectorsBlock
+)
+
+data class ConnectorsBlock(
+    val ai: AiConnectorBlock
+)
+
+data class AiConnectorBlock(
+    val active: String,
+    val available: List<String>
 )
 
 data class SlackSettingsResponse(

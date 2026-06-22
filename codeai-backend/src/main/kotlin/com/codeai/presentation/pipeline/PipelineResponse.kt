@@ -23,6 +23,7 @@ data class PipelineSummary(
     val prTitle: String,
     val prAuthor: String,
     val status: String,
+    val vcsId: String,
     val startedAt: LocalDateTime?,
     val completedAt: LocalDateTime?,
     val durationSeconds: Long?
@@ -35,6 +36,7 @@ data class PipelineSummary(
                 .substringBefore("/pull/"),
             prNumber = e.prNumber, prTitle = e.prTitle,
             prAuthor = e.prAuthor, status = e.status.name,
+            vcsId = "github", // V1: VCS 단일(GitHub). 멀티 VCS는 V2에서 컬럼 추가.
             startedAt = e.startedAt, completedAt = e.completedAt,
             durationSeconds = e.durationSeconds
         )
@@ -78,6 +80,7 @@ data class StepSummary(
 }
 
 data class ReviewSummary(
+    val engineId: String,
     val status: String,
     val promptVersion: String,
     val totalIssues: Int,
@@ -89,6 +92,7 @@ data class ReviewSummary(
 ) {
     companion object {
         fun from(r: CodeReview, comments: List<ReviewComment>) = ReviewSummary(
+            engineId = r.engineId,
             status = r.status.name, promptVersion = r.promptVersion,
             totalIssues = r.totalIssues, highCount = r.highCount,
             mediumCount = r.mediumCount, lowCount = r.lowCount,
@@ -114,6 +118,7 @@ data class CommentSummary(
 }
 
 data class TestRunSummary(
+    val runnerId: String,
     val status: String,
     val totalTests: Int,
     val passed: Int,
@@ -122,6 +127,7 @@ data class TestRunSummary(
 ) {
     companion object {
         fun from(t: TestRun) = TestRunSummary(
+            runnerId = "playwright", // V1: 테스트 러너 단일(Playwright).
             status = t.status.name, totalTests = t.totalTests,
             passed = t.passed, failed = t.failed, coveragePct = t.coveragePct
         )
@@ -129,13 +135,14 @@ data class TestRunSummary(
 }
 
 data class NotificationSummary(
-    val channel: String,
+    val channelId: String,
     val status: String,
     val sentAt: LocalDateTime?
 ) {
     companion object {
+        // 프론트 계약: channelId 는 소문자 플러그인 ID. (DB enum SLACK → "slack")
         fun from(n: NotificationMessage) = NotificationSummary(
-            channel = n.channel.name, status = n.status.name, sentAt = n.sentAt
+            channelId = n.channel.name.lowercase(), status = n.status.name, sentAt = n.sentAt
         )
     }
 }
@@ -146,6 +153,7 @@ data class PipelineStatsResponse(
     val failedCount: Long,
     val successRate: Double,
     val avgDurationSeconds: Long,
+    val engineBreakdown: Map<String, Long>,
     val period: String,
     val dailyStats: List<DailyStat>
 )

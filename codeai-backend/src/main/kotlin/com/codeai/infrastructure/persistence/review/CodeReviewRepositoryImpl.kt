@@ -30,4 +30,9 @@ class CodeReviewRepositoryImpl(
         withContext(Dispatchers.IO) {
             commentJpa.findByCodeReviewId(reviewId).map { it.toDomain() }
         }
+
+    override suspend fun countByEngine(): Map<String, Long> =
+        withContext(Dispatchers.IO) {
+            reviewJpa.countByEngine().associate { row -> (row[0] as String) to (row[1] as Long) }
+        }
 }

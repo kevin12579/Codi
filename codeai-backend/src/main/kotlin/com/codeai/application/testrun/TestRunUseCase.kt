@@ -5,14 +5,14 @@ import com.codeai.domain.event.TestRunCompleted
 import com.codeai.domain.testrun.TestRun
 import com.codeai.domain.testrun.TestRunRepository
 import com.codeai.infrastructure.playwright.PlaywrightResultParser
-import com.codeai.infrastructure.playwright.PlaywrightRunner
+import com.codeai.plugin.registry.ProviderRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 
 @Service
 class TestRunUseCase(
     private val testRunRepository: TestRunRepository,
-    private val playwrightRunner: PlaywrightRunner,
+    private val registry: ProviderRegistry,
     private val notifyUseCase: NotifyUseCase
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
@@ -25,7 +25,7 @@ class TestRunUseCase(
         )
 
         return try {
-            val result = playwrightRunner.run()
+            val result = registry.activeRunner().run()
 
             val domainCases = PlaywrightResultParser.toDomainCases(result, testRun.id)
             domainCases.forEach { testRunRepository.saveTestCase(it) }

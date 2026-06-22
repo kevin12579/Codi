@@ -20,7 +20,13 @@ class SettingsUseCase(
     suspend fun getAll(): AllSettingsResponse = AllSettingsResponse(
         github = getGithub(),
         slack = getSlack(),
-        claude = getClaude()
+        claude = getClaude(),
+        connectors = ConnectorsBlock(
+            ai = AiConnectorBlock(
+                active = settingsStore.get("ai.engine") ?: "claude",
+                available = listOf("claude", "openai", "gemini")
+            )
+        )
     )
 
     suspend fun getSlack(): SlackSettingsResponse {

@@ -13,8 +13,11 @@ class WebhookController(
     private val webhookProcessUseCase: WebhookProcessUseCase,
     private val objectMapper: ObjectMapper
 ) {
-    @PostMapping("/github")
-    suspend fun receiveGithubWebhook(
+    // POST /webhook/{provider} (변경종합 §4-4, 하위호환). V1 은 provider=github 고정 처리.
+    // 기존 /webhook/github 도 {provider}=github 로 매칭되어 동작 동일.
+    @PostMapping("/{provider}")
+    suspend fun receiveWebhook(
+        @PathVariable provider: String,
         @RequestHeader("X-Hub-Signature-256", required = false) signature: String?,
         @RequestHeader("X-GitHub-Event", required = false) eventType: String?,
         @RequestBody payload: String

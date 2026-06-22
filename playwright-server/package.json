@@ -1,0 +1,13 @@
+{
+  "name": "codi-playwright-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Codi 전용 Playwright E2E 실행 서버 (HTTP). 백엔드 PlaywrightRunnerClient 가 POST /run 호출.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.0",
+    "@playwright/test": "^1.44.0"
+  }
+}

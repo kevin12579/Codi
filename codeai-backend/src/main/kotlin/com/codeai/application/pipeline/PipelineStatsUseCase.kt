@@ -2,6 +2,7 @@ package com.codeai.application.pipeline
 
 import com.codeai.domain.pipeline.PipelineRepository
 import com.codeai.domain.pipeline.PipelineStatus
+import com.codeai.domain.review.CodeReviewRepository
 import com.codeai.infrastructure.cache.PipelineCacheService
 import com.codeai.presentation.pipeline.DailyStat
 import com.codeai.presentation.pipeline.PipelineStatsResponse
@@ -11,6 +12,7 @@ import kotlin.math.roundToInt
 @Service
 class PipelineStatsUseCase(
     private val pipelineRepository: PipelineRepository,
+    private val reviewRepository: CodeReviewRepository,
     private val cache: PipelineCacheService
 ) {
     suspend fun getStats(period: String): PipelineStatsResponse {
@@ -48,6 +50,7 @@ class PipelineStatsUseCase(
                 failedCount = failedCount,
                 successRate = successRate,
                 avgDurationSeconds = avgDuration,
+                engineBreakdown = reviewRepository.countByEngine(),
                 period = period,
                 dailyStats = dailyStats
             )
