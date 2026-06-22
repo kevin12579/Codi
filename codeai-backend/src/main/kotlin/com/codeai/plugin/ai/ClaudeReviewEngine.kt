@@ -13,6 +13,7 @@ class ClaudeReviewEngine(
     private val client: ClaudeApiClient,
 ) : AIReviewEngine {
     override val id = "claude"
+    override val preferredPromptVersion = "v3"
     override suspend fun review(diff: String, promptVersion: String): ReviewResult =
         client.review(diff, promptVersion)
 }

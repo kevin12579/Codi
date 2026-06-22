@@ -37,16 +37,17 @@ class ReviewUseCase(
         val startedExecution = pipelineRepository.save(execution.start())
 
         val engine = registry.activeAiEngine()
+        val effectivePromptVersion = engine.preferredPromptVersion ?: promptVersion
         var review = reviewRepository.save(
-            CodeReview(pipelineExecutionId = pipelineExecutionId, engineId = engine.id, promptVersion = promptVersion)
+            CodeReview(pipelineExecutionId = pipelineExecutionId, engineId = engine.id, promptVersion = effectivePromptVersion)
         )
 
         try {
             val vcs = registry.resolveVcs()
             val diff = vcs.getDiff(repoFullName, prNumber)
-            log.info("PR diff 획득: $repoFullName#$prNumber, ${diff.length}자, 엔진=${engine.id}")
+            log.info("PR diff 획득: $repoFullName#$prNumber, ${diff.length}자, 엔진=${engine.id}, 프롬프트=$effectivePromptVersion")
 
-            val reviewResult = engine.review(diff, promptVersion)
+            val reviewResult = engine.review(diff, effectivePromptVersion)
 
             val savedComments = reviewResult.comments.map { parsed ->
                 reviewRepository.saveComment(

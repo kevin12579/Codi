@@ -64,6 +64,7 @@ class OpenAIReviewEngine(
         val usage = response["usage"] as? Map<*, *>
         val tokens = (usage?.get("total_tokens") as? Number)?.toInt() ?: 0
 
+        log.info("[openai] 원본 응답 (앞500자): {}", text.take(500))
         return ApiCallResult(parseComments(text), tokens)
     }
 }

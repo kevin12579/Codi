@@ -13,5 +13,7 @@ import com.codeai.infrastructure.ai.ReviewResult
  */
 interface AIReviewEngine {
     val id: String
+    /** null이면 전역 codeai.review.prompt-version 사용, 값이 있으면 엔진별 고정 버전 사용. */
+    val preferredPromptVersion: String? get() = null
     suspend fun review(diff: String, promptVersion: String): ReviewResult
 }

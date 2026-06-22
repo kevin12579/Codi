@@ -5,16 +5,16 @@ spring:
   application:
     name: codeai-backend
 
-  # Spring AI MCP 서버 (Streamable HTTP) — V1 신규
-  # 외부 AI 클라이언트(Claude Desktop·Cursor·MCP Inspector)가 /mcp 로 도구 호출
+  # Spring AI MCP 서버 (SSE 전송) — V1 신규
+  # spring-ai 1.0.x: /sse (SSE 이벤트 스트림), /mcp/message (클라이언트 → 서버)
+  # MCP Inspector 연결: Transport=SSE, URL=http://localhost:8080/sse
   ai:
     mcp:
       server:
         enabled: true
         name: codi-mcp-server
         version: 1.0.0
-        type: ASYNC            # WebFlux 리액티브 스택 권장 (종합설계 §6-3)
-        protocol: STREAMABLE   # 표준 Streamable HTTP (구 SSE deprecated)
+        type: ASYNC            # WebFlux 리액티브 스택
         capabilities:
           tool: true
           resource: false
@@ -68,7 +68,7 @@ codeai:
   api:
     key: ${CODEAI_API_KEY:codeai-local-key}
   review:
-    prompt-version: ${CLAUDE_PROMPT_VERSION:v3}
+    prompt-version: ${CLAUDE_PROMPT_VERSION:v4}
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
@@ -88,7 +88,7 @@ claude:
 openai:
   api:
     key: ${OPENAI_API_KEY:}
-    model: ${OPENAI_MODEL:gpt-4o}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
     max-tokens: ${OPENAI_MAX_TOKENS:2000}
     max-chunks: ${OPENAI_MAX_CHUNKS:10}
 
@@ -117,3 +117,7 @@ playwright:
 
 frontend:
   url: ${FRONTEND_URL:http://frontend:80}
+
+logging:
+  level:
+    org.springframework.web.reactive.resource: WARN
