@@ -15,19 +15,19 @@ class PipelineStatsUseCase(
     private val reviewRepository: CodeReviewRepository,
     private val cache: PipelineCacheService
 ) {
-    suspend fun getStats(period: String): PipelineStatsResponse {
-        val key = PipelineCacheService.statsKey()
+    suspend fun getStats(period: String, repositoryId: Long? = null): PipelineStatsResponse {
+        val key = PipelineCacheService.statsKey(repositoryId)
         return cache.getOrLoad(key, PipelineStatsResponse::class.java) {
             val days = when (period) { "30d" -> 30; "90d" -> 90; else -> 7 }
 
-            val successCount = pipelineRepository.countByStatus(PipelineStatus.SUCCESS)
-            val failedCount = pipelineRepository.countByStatus(PipelineStatus.FAILED)
-            val runningCount = pipelineRepository.countByStatus(PipelineStatus.RUNNING)
-            val pendingCount = pipelineRepository.countByStatus(PipelineStatus.PENDING)
+            val successCount = pipelineRepository.countByStatus(PipelineStatus.SUCCESS, repositoryId)
+            val failedCount = pipelineRepository.countByStatus(PipelineStatus.FAILED, repositoryId)
+            val runningCount = pipelineRepository.countByStatus(PipelineStatus.RUNNING, repositoryId)
+            val pendingCount = pipelineRepository.countByStatus(PipelineStatus.PENDING, repositoryId)
             val total = successCount + failedCount + runningCount + pendingCount
             val successRate = if (total > 0) (successCount.toDouble() / total * 1000).roundToInt() / 10.0 else 0.0
 
-            val completed = pipelineRepository.findCompletedSince(days)
+            val completed = pipelineRepository.findCompletedSince(days, repositoryId)
             val avgDuration = if (completed.isEmpty()) 0L
             else completed.mapNotNull { it.durationSeconds }.let { durations ->
                 if (durations.isEmpty()) 0L else durations.average().toLong()

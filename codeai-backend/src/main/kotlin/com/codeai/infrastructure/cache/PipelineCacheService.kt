@@ -50,11 +50,11 @@ class PipelineCacheService(
     }
 
     companion object {
-        fun listKey(status: String?, from: String?, to: String?, page: Int, size: Int) =
-            "pipeline:list:${status}:${from}:${to}:${page}:${size}"
+        fun listKey(status: String?, from: String?, to: String?, page: Int, size: Int, repositoryId: Long? = null) =
+            "pipeline:list:${status}:${from}:${to}:${page}:${size}:${repositoryId}"
 
         fun detailKey(id: Long) = "pipeline:detail:$id"
 
-        fun statsKey() = "pipeline:stats"
+        fun statsKey(repositoryId: Long? = null) = "pipeline:stats:${repositoryId}"
     }
 }

@@ -30,9 +30,15 @@ data class ClaudeSettingsResponse(
     val availableVersions: List<String> = listOf("v1", "v2", "v3")
 )
 
+data class SlackTestResponse(
+    val sent: Boolean,
+    val sentAt: LocalDateTime
+)
+
 data class GithubSettingsResponse(
     val connectedRepos: List<String>,
     val webhookUrl: String,
+    val webhookSecret: String?,
     val connected: Boolean,
     val lastConnectedAt: LocalDateTime?
 )

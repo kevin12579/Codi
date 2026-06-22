@@ -30,7 +30,7 @@ class PipelineRepositoryImpl(
         }
 
     override suspend fun findAll(
-        status: String?, from: String?, to: String?, page: Int, size: Int
+        status: String?, from: String?, to: String?, page: Int, size: Int, repositoryId: Long?
     ): PipelineExecutionPage = withContext(Dispatchers.IO) {
         val statusEnum = status?.let { PipelineStatus.valueOf(it) }
         val fromDt = from?.let { LocalDate.parse(it, dateFmt).atStartOfDay() }
@@ -42,6 +42,7 @@ class PipelineRepositoryImpl(
             statusEnum?.let { predicates.add(cb.equal(root.get<PipelineStatus>("status"), it)) }
             fromDt?.let { predicates.add(cb.greaterThanOrEqualTo(root.get<LocalDateTime>("createdAt"), it)) }
             toDt?.let { predicates.add(cb.lessThanOrEqualTo(root.get<LocalDateTime>("createdAt"), it)) }
+            repositoryId?.let { predicates.add(cb.equal(root.get<Long>("repositoryId"), it)) }
             if (predicates.isEmpty()) null else cb.and(*predicates.toTypedArray())
         }
         val pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
@@ -54,18 +55,22 @@ class PipelineRepositoryImpl(
         )
     }
 
-    override suspend fun countByStatus(status: PipelineStatus): Long =
-        withContext(Dispatchers.IO) { jpa.countByStatus(status) }
+    override suspend fun countByStatus(status: PipelineStatus, repositoryId: Long?): Long =
+        withContext(Dispatchers.IO) {
+            if (repositoryId != null) jpa.countByStatusAndRepositoryId(status, repositoryId)
+            else jpa.countByStatus(status)
+        }
 
     override suspend fun findRecent(limit: Int): List<PipelineExecution> =
         withContext(Dispatchers.IO) {
             jpa.findTop10ByOrderByCreatedAtDesc().map { it.toDomain() }
         }
 
-    override suspend fun findCompletedSince(days: Int): List<PipelineExecution> =
+    override suspend fun findCompletedSince(days: Int, repositoryId: Long?): List<PipelineExecution> =
         withContext(Dispatchers.IO) {
             val since = java.time.LocalDateTime.now().minusDays(days.toLong())
-            jpa.findCompletedSince(since).map { it.toDomain() }
+            if (repositoryId != null) jpa.findCompletedSinceAndRepository(since, repositoryId).map { it.toDomain() }
+            else jpa.findCompletedSince(since).map { it.toDomain() }
         }
 
     override suspend fun findActive(repositoryId: Long, prNumber: Int): PipelineExecution? =

@@ -8,11 +8,12 @@ interface PipelineRepository {
         from: String?,
         to: String?,
         page: Int,
-        size: Int
+        size: Int,
+        repositoryId: Long? = null
     ): PipelineExecutionPage
-    suspend fun countByStatus(status: PipelineStatus): Long
+    suspend fun countByStatus(status: PipelineStatus, repositoryId: Long? = null): Long
     suspend fun findRecent(limit: Int): List<PipelineExecution>
-    suspend fun findCompletedSince(days: Int): List<PipelineExecution>
+    suspend fun findCompletedSince(days: Int, repositoryId: Long? = null): List<PipelineExecution>
     suspend fun findActive(repositoryId: Long, prNumber: Int): PipelineExecution?
 }
 

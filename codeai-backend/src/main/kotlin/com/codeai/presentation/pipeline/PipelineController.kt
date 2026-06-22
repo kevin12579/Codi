@@ -21,17 +21,19 @@ class PipelineController(
         @RequestParam(required = false) from: String?,
         @RequestParam(required = false) to: String?,
         @RequestParam(defaultValue = "0") page: Int,
-        @RequestParam(defaultValue = "20") size: Int
+        @RequestParam(defaultValue = "20") size: Int,
+        @RequestParam(required = false) repositoryId: Long?
     ): ApiResponse<PipelineListResponse> {
-        val result = pipelineQueryUseCase.getList(status, from, to, page, size.coerceAtMost(100))
+        val result = pipelineQueryUseCase.getList(status, from, to, page, size.coerceAtMost(100), repositoryId)
         return ApiResponse.ok(result)
     }
 
     @GetMapping("/stats")
     suspend fun getStats(
-        @RequestParam(defaultValue = "7d") period: String
+        @RequestParam(defaultValue = "7d") period: String,
+        @RequestParam(required = false) repositoryId: Long?
     ): ApiResponse<PipelineStatsResponse> {
-        val result = pipelineStatsUseCase.getStats(period)
+        val result = pipelineStatsUseCase.getStats(period, repositoryId)
         return ApiResponse.ok(result)
     }
 

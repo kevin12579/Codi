@@ -30,9 +30,9 @@ class SettingsController(private val settingsUseCase: SettingsUseCase) {
 
     @Operation(summary = "Slack 테스트 메시지 발송")
     @PostMapping("/slack/test")
-    suspend fun testSlack(): ApiResponse<Nothing> {
-        settingsUseCase.sendSlackTest()
-        return ApiResponse.ok("테스트 메시지 발송 완료")
+    suspend fun testSlack(): ApiResponse<SlackTestResponse> {
+        val sentAt = settingsUseCase.sendSlackTest()
+        return ApiResponse.ok(SlackTestResponse(sent = true, sentAt = sentAt), "Slack 테스트 메시지 발송 완료")
     }
 
     @Operation(summary = "Claude API 설정 조회")

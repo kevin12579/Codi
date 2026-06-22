@@ -6,18 +6,12 @@ import java.time.LocalDateTime
 data class LoginResponse(
     val accessToken: String,
     val tokenType: String = "Bearer",
-    val expiresIn: Long,
-    val userId: Long,
-    val email: String,
-    val name: String
+    val expiresIn: Long
 ) {
     companion object {
         fun from(r: AuthResult, expiresInSeconds: Long) = LoginResponse(
             accessToken = r.token,
-            expiresIn = expiresInSeconds,
-            userId = r.userId,
-            email = r.email,
-            name = r.name
+            expiresIn = expiresInSeconds
         )
     }
 }
