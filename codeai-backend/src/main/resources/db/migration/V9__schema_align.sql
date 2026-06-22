@@ -55,10 +55,9 @@ ALTER TABLE system_settings RENAME COLUMN "key"   TO setting_key;
 ALTER TABLE system_settings RENAME COLUMN "value" TO setting_value;
 
 -- ============================================================
--- 6. ai.engine 기본값 claude 복구 (V8에서 openai로 임시 전환됨)
---    설계 기본값: ai.engine = 'claude'
+-- 6. ai.engine 기본값 openai (gpt)
 -- ============================================================
-UPDATE system_settings SET setting_value = 'claude' WHERE setting_key = 'ai.engine';
+UPDATE system_settings SET setting_value = 'openai' WHERE setting_key = 'ai.engine';
 
 -- ============================================================
 -- 7. uq_pe_active: 같은 레포+PR에 활성 파이프라인 1개만 허용 (설계 §3 무결성)
