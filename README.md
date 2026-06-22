@@ -1,764 +1,197 @@
-# Codi (Code AI) - PR 자동 코드리뷰 & 배포 파이프라인 플랫폼 (v0.4)
+<div align="center">
 
-GitHub PR이 열리면 **Claude AI 코드리뷰 + Playwright E2E 테스트**를 자동으로 병렬 실행하고,
-결과를 Slack에 알림한 뒤 조건 충족 시 GitHub Actions 배포를 트리거하는 파이프라인 자동화 플랫폼.
+# Codi
 
-> **v0.4 패치 (2026-06-15)** - Webhook PR action 필터링 · Claude JSON lenient 파서 · JwtAuthFilter 이중 관리 제거 · Playwright 비활성화 플래그 · Swagger HTTPS 수정 · 코드리뷰 오탐 방지 규칙 · PR 댓글 심각도 정렬 · Slack 테스트 메시지 구체화
->
-> **v0.3 패치 (2026-06-12)** - TestRunUseCase 병렬 실행 · DeployUseCase 연결 · bin/ gitignore 적용 · 배포 워크플로우 추가 · 파이프라인/설정 API 개선
+**AI-Powered PR Review & Deploy Pipeline**
 
----
+GitHub PR이 열리면 AI 코드리뷰 + E2E 테스트를 자동 실행하고,  
+결과를 Slack으로 알림한 뒤 조건 충족 시 자동 배포까지 이어주는 개발 워크플로우 자동화 플랫폼.
 
-## 목차
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue?logo=kotlin)](https://kotlinlang.org)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.4-green?logo=spring)](https://spring.io)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev)
 
-1. [프로젝트 개요](#1-프로젝트-개요)
-2. [v0.3 주요 업데이트](#2-v03-주요-업데이트-2026-06-12)
-3. [v0.4 패치노트](#3-v04-패치노트-2026-06-15)
-4. [시스템 아키텍처](#4-시스템-아키텍처)
-5. [AI 코드리뷰 파이프라인](#5-ai-코드리뷰-파이프라인)
-6. [데이터베이스 설계](#6-데이터베이스-설계)
-7. [기술 스택](#7-기술-스택)
-8. [프로젝트 구조](#8-프로젝트-구조)
-9. [빠른 시작](#9-빠른-시작)
-10. [API 명세](#10-api-명세)
-11. [배포 구성](#11-배포-구성)
-12. [트러블슈팅 / 개발 메모](#12-트러블슈팅--개발-메모)
+</div>
 
 ---
 
-## 1. 프로젝트 개요
+## What is Codi?
 
-| 항목 | v0.1~v0.2 | **v0.3~v0.4 (현재)** |
-|------|-----------|----------------------|
-| 트리거 | GitHub Webhook (수동) | Webhook HMAC 검증 + action 필터 (opened/synchronize/reopened) |
-| 코드리뷰 | Claude API 단순 호출 | diff 청크 분할 + v3 프롬프트 (오탐 방지 규칙 + 삭제 라인 제외) |
-| 리뷰 표시 | PR 댓글 전체 목록 | 심각도 순 정렬 (HIGH->MEDIUM->LOW) 상위 20건 |
-| 테스트 | 없음 | Playwright E2E (PLAYWRIGHT_ENABLED 플래그로 비활성화 가능) |
-| 병렬 처리 | 없음 | 코루틴 async/awaitAll (리뷰 + 테스트 동시 실행) |
-| 배포 조건 | 없음 | HIGH==0 && 테스트 통과 -> workflow_dispatch 트리거 |
-| Slack 알림 | 없음 | 리뷰 완료 + 테스트 완료 각각 (스킵/통과/실패 구분) |
-| 파이프라인 조회 | 없음 | 목록/상세/통계 API + Redis TTL 60초 캐시 |
-| 설정 관리 | .env 전용 | DB key-value (SettingsStore) + API로 런타임 변경 |
-| 모니터링 | 없음 | Prometheus + Grafana (/actuator/prometheus) |
+Codi는 PR 한 번으로 코드리뷰 · 테스트 · 배포를 자동화하는 오픈소스 플랫폼이다.
+
+- **AI 코드리뷰** — Claude / GPT-4o / Gemini 중 하나를 골라 PR diff를 분석하고 심각도별 이슈를 PR 댓글로 등록
+- **자동 E2E 테스트** — Playwright 전용 컨테이너를 파이프라인에서 직접 호출
+- **조건부 배포** — HIGH 이슈 0건 + 테스트 통과 시에만 GitHub Actions 배포 트리거
+- **Slack 알림** — 리뷰 완료 · 테스트 결과 · 배포 성공을 단계별로 발송
+- **MCP 서버** — Claude Desktop · Cursor에서 직접 도구 호출 가능
+- **런타임 엔진 교체** — 재배포 없이 대시보드에서 AI 엔진 / 알림 채널 / 배포 제공자를 즉시 전환
 
 ---
 
-## 2. v0.3 주요 업데이트 (2026-06-12)
+## How It Works
 
-### 무엇이 바뀌었나
-
-1. **파이프라인 병렬 실행** - RedisStreamConsumer에서 ReviewUseCase + TestRunUseCase를 코루틴으로 동시 실행 후 DeployUseCase 판단
-2. **조건부 자동 배포** - HIGH 이슈 0건 + 테스트 통과 시 GitHub Actions workflow_dispatch 트리거
-3. **파이프라인 조회 API** - 목록/상세/통계 엔드포인트 + Redis 캐시 (TTL 60초)
-4. **설정 API** - GitHub Webhook Secret, Slack URL, Claude 프롬프트 버전을 DB key-value로 관리
-5. **bin/ gitignore 적용** - IntelliJ 컴파일 산출물 Git 추적 제거 (AI 이중 분석 방지)
-6. **GitHub Actions 배포 워크플로우** - .github/workflows/deploy.yml 추가 (workflow_dispatch 트리거)
+```
+GitHub PR 오픈
+  │
+  ▼  POST /webhook/github  (HMAC-SHA256 검증)
+  │
+  ├── AI 코드리뷰  → PR 댓글 등록 → Slack 알림
+  │
+  └── Playwright E2E  → 결과 기록 → Slack 알림
+  │
+  ▼  HIGH 이슈 0건 + 테스트 통과?
+     → GitHub Actions workflow_dispatch 트리거
+```
 
 ---
 
-## 3. v0.4 패치노트 (2026-06-15)
+## Tech Stack
 
-### 버그 수정
-
-| 분류 | 내용 |
-|------|------|
-| **Webhook 이중 실행** | WebhookController가 PR의 모든 action(opened/closed/labeled 등)을 처리 -> merge 시 파이프라인 추가 실행. action 필터링 추가 (opened/synchronize/reopened만 처리) |
-| **PR 댓글 HIGH 누락** | comments.take(20) 전에 정렬 없음 -> HIGH가 21번째 이후에 배치 가능. sortedBy { severityOrder } 후 take(20)으로 수정 |
-| **Swagger Mixed Content** | ngrok HTTPS 환경에서 springdoc 서버 URL이 http://로 생성 -> 브라우저 차단. forward-headers-strategy: framework 추가 |
-| **signup 401** | JwtAuthFilter.publicPaths와 SecurityConfig.permitAll() 이중 관리로 SecurityConfig에만 추가하면 여전히 차단. JwtAuthFilter publicPaths 완전 제거 |
-| **Claude JSON 파싱 실패** | replace("\$") 수정이 \\$ (유효 JSON)을 \$ (무효 JSON)으로 오염. ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER lenient 파서 도입 |
-| **Playwright 오류** | JVM 컨테이너에 npx 없어 IOException. PLAYWRIGHT_ENABLED=false 플래그 추가, 비활성화 시 0건/PASSED 반환 |
-
-### 신규 기능 / 개선
-
-| 기능 | 설명 |
-|------|------|
-| **오탐 방지 규칙** | v3 프롬프트에 추가: 도메인 모델 필드 선언만으로 HIGH 금지, .env.example 빈 값 무시, diff 청크 외 코드 추정 금지 |
-| **Slack 테스트 메시지 구체화** | totalTests==0 -> "Playwright 테스트 스킵 (비활성화)" 회색 / 통과 -> 녹색 / 실패 -> 빨강 |
-| **JSON 에러 응답** | 401 authenticationEntryPoint가 JSON body 반환 (기존: 빈 응답) |
-
-### 변경 파일
-
-| 파일 | 변경 내용 |
-|------|-----------|
-| WebhookController.kt | ObjectMapper 주입, action 필터링 (opened/synchronize/reopened) |
-| JwtAuthFilter.kt | publicPaths Set 완전 제거, 토큰 파싱+SecurityContext 설정만 담당 |
-| SecurityConfig.kt | /api/auth/signup, /actuator/health/** 추가, JSON 401 응답 |
-| application.yml | server.forward-headers-strategy: framework, playwright.enabled 추가 |
-| PlaywrightRunner.kt | @Value playwright.enabled 주입, 비활성화 시 즉시 PASSED 반환 |
-| GitHubPrCommentClient.kt | sortedBy severityOrder 후 take(20), 총 건수 표시 |
-| ClaudeReviewPrompt.kt | v3 프롬프트 오탐 방지 규칙 섹션 추가 |
-| ClaudeApiClient.kt | claudeMapper (ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER=true) 추가, 수동 replace 제거 |
-| SlackMessageBuilder.kt | buildTestRunMessage totalTests==0 케이스 추가 (스킵 문구+회색) |
+| | |
+|---|---|
+| **Backend** | Kotlin · Spring Boot WebFlux · Coroutines |
+| **Frontend** | React 18 · Vite · TailwindCSS |
+| **Database** | PostgreSQL · Redis (Stream / Cache) |
+| **AI** | Claude (Haiku) · GPT-4o Mini · Gemini 2.0 Flash |
+| **Testing** | Playwright (전용 Node.js 컨테이너) |
+| **MCP** | Spring AI 1.0.9 (SSE 전송) |
+| **Infra** | Docker Compose · GitHub Actions · Prometheus + Grafana |
 
 ---
 
-## 4. 시스템 아키텍처
+## Quick Start
 
-### 4-1. 레이어드 아키텍처 + DDD
+### 1. 환경 변수 설정
 
-```
-+------------------------------------------------------------------+
-|  EXTERNAL SYSTEMS                                                |
-|  [GitHub]    [Slack]    [Claude API]    [GitHub Actions]         |
-+------|-----------^-----------^------------------^---------------+
-       | Webhook   | HTTP      | HTTP             | REST
-       v           |           |                  |
-+------------------------------------------------------------------+
-|  PRESENTATION LAYER                                              |
-|  React 18 + Vite 5 (Dashboard)  <--REST-->  Spring Boot WebFlux |
-|  WebhookController  PipelineController  AuthController          |
-|  SettingsController                                              |
-+------------------------------|-----------------------------------+
-                                |
-+------------------------------|-----------------------------------+
-|  APPLICATION LAYER           v                                   |
-|  WebhookProcessUseCase   ReviewUseCase    TestRunUseCase         |
-|  PipelineQueryUseCase    NotifyUseCase    DeployUseCase          |
-|  SettingsUseCase         AuthUseCase                             |
-+------------------------------|-----------------------------------+
-                                |
-+------------------------------|-----------------------------------+
-|  DOMAIN LAYER                v                                   |
-|  Pipeline Domain    Review Domain    TestRun Domain              |
-|  PipelineExecution  CodeReview       TestRun                     |
-|  PipelineStep       ReviewComment    TestCase                    |
-|                     ReviewSeverity (HIGH/MEDIUM/LOW)             |
-|                                                                  |
-|  Domain Events:                                                  |
-|    ReviewCompleted  -> NotifyUseCase (Slack + GitHub PR 댓글)    |
-|    TestRunCompleted -> NotifyUseCase (Slack)                     |
-|    TestRunCompleted -> DeployUseCase (배포 조건 판단)             |
-+------------------------------|-----------------------------------+
-                                |
-+------------------------------|-----------------------------------+
-|  INFRASTRUCTURE LAYER        v                                   |
-|  PostgreSQL (JPA)   Redis (Stream+Cache)   Claude API            |
-|  Slack Webhook      GitHub API             Playwright (Docker)   |
-|  Prometheus+Grafana                                              |
-+------------------------------------------------------------------+
+```bash
+cp .env.example .env
 ```
 
-### 4-2. 파이프라인 이벤트 흐름
+`.env`에서 필수 항목 입력:
 
-```
-GitHub PR 오픈 / 새 커밋 push
-      |
-      v  POST /webhook/github  (HMAC-SHA256 서명 검증)
-  WebhookController
-      |  action 필터: opened / synchronize / reopened 만 처리
-      |  closed(merge) / labeled / assigned 등은 즉시 무시
-      v
-  WebhookProcessUseCase
-      |  중복 방지: PENDING/RUNNING 상태 파이프라인 존재 시 재사용
-      v
-  Redis Stream publish ("codeai:webhook:events")
-      |
-      v  RedisStreamConsumer (1초 polling)
-  PipelineExecution 생성 (PENDING -> RUNNING)
-      |
-      |---- async ---- ReviewUseCase
-      |                  PR diff 추출 -> 토큰 분할 -> Claude API (v3 프롬프트)
-      |                  심각도 분류 (HIGH/MEDIUM/LOW)
-      |                  GitHub PR 댓글 등록 (심각도 순 상위 20건)
-      |                  ReviewCompleted 이벤트 발행
-      |                  -> NotifyUseCase -> Slack
-      |
-      |---- async ---- TestRunUseCase
-                         PLAYWRIGHT_ENABLED=false -> 0건/PASSED 즉시 반환
-                         PLAYWRIGHT_ENABLED=true  -> npx playwright test 실행
-                         TestRunCompleted 이벤트 발행
-                         -> NotifyUseCase -> Slack (스킵/통과/실패 구분)
-      |
-      v  awaitAll() - 둘 다 완료 대기
-  DeployUseCase.triggerIfEligible()
-      |  HIGH == 0  &&  테스트 통과(또는 스킵)
-      v
-  GitHub Actions workflow_dispatch (ref: PR 브랜치명)
+```env
+WEBHOOK_SECRET=your_github_webhook_secret
+JWT_SECRET=your_jwt_secret_256bit
+AES_SECRET_KEY=your_32byte_hex_key
+
+# AI 엔진 (1개 이상)
+CLAUDE_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+
+# 알림 / VCS
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+GITHUB_TOKEN=ghp_...
 ```
 
-### 4-3. 보안 설계
+### 2. 실행
 
-| 위협 | 대응 방안 | 구현 위치 |
-|------|-----------|-----------|
-| Webhook 위조 요청 | HMAC-SHA256 서명 검증 (X-Hub-Signature-256) | HmacValidator |
-| 인증 우회 | JWT Bearer 토큰 검증 (JwtAuthFilter) | SecurityConfig 단독 관리 |
-| 비밀번호 평문 저장 | BCrypt(cost=12) 해시 저장 | AuthUseCase |
-| Webhook 이벤트 중복 | Redis Stream Consumer Group (1회 처리) + PENDING/RUNNING 체크 | WebhookProcessUseCase |
-| PR diff 민감 데이터 | API Key/비밀번호 패턴 마스킹 전처리 | MaskingUtil |
-| 토큰 초과 비용 | 최대 10청크 제한 (CLAUDE_MAX_CHUNKS 환경변수) | ClaudeApiClient |
-| 비밀 키 기본값 | WEBHOOK_SECRET, JWT_SECRET 기본값 없음 - 미설정 시 기동 실패 | application.yml |
+```bash
+docker compose up -d
+```
 
-### 4-4. 설계 결정 근거
+### 3. GitHub Webhook 등록
 
-| 기술 | 선택 근거 |
-|------|-----------|
-| Spring Boot WebFlux | Webhook 동시 수신 비동기 처리. Kotlin 코루틴과 자연스럽게 통합 |
-| Redis Stream | Kafka 대비 설정 간소. Consumer Group으로 순서 보장 + 중복 방지 |
-| Kotlin 코루틴 | async/awaitAll로 리뷰+테스트 병렬 실행 간결하게 표현 |
-| Claude Haiku | Sonnet 대비 3배 저렴 (~$0.05/PR). 구조화 태스크(코드리뷰)에 충분한 정확도 |
-| Redis Cache | 파이프라인 조회(읽기 多) TTL 60초 캐시. 큐와 동일 인스턴스 활용 |
+| 항목 | 값 |
+|------|-----|
+| Payload URL | `https://{서버주소}/webhook/github` |
+| Content type | `application/json` |
+| Secret | `.env`의 `WEBHOOK_SECRET` |
+| Events | `Pull requests` |
+
+### 4. 대시보드 접속
+
+```
+http://localhost:3000
+```
+
+Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 ---
 
-## 5. AI 코드리뷰 파이프라인
+## Environment Variables
 
-### 5-1. 흐름
-
-```
-PR diff 수신 (GitHub REST API)
-      |
-      v  MaskingUtil.mask()
-  민감 데이터 마스킹 (API Key, 비밀번호 패턴)
-      |
-      v  DiffTokenizer.splitByTokenBudget()
-  토큰 예산 단위로 청크 분할 -> 최대 10청크 (CLAUDE_MAX_CHUNKS)
-      |
-      v  ClaudeReviewPrompt.build(chunk, "v3")
-  v3 프롬프트 구성:
-    - 분석 제외: bin/, build/, out/, target/ 경로
-    - 분석 제외: diff "-" (삭제) 라인
-    - 오탐 방지: 도메인 모델 필드 선언만으로 HIGH 금지
-    - 오탐 방지: .env.example 빈 값 무시
-    - 심각도 기준: HIGH=보안취약점만 / MEDIUM=버그/성능 / LOW=가독성
-      |
-      v  Claude API (haiku-4-5-20251001, max 10청크)
-  JSON 응답: { "issues": [{severity, filePath, lineNumber, content, suggestion}] }
-      |
-      v  claudeMapper (ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER=true)
-  lenient JSON 파싱
-      |
-      v  recoverTruncatedJson() - JsonEOFException 시 복구 시도
-      |
-      v  GitHubPrCommentClient.buildReviewBody()
-  PR 댓글 구성: 심각도 순 정렬 (HIGH->MEDIUM->LOW) 상위 20건
-  GitHub PR 댓글 등록
-```
-
-### 5-2. 프롬프트 버전 비교
-
-| 버전 | 특징 | 현재 기본값 |
-|------|------|-------------|
-| v1 | 자유형 텍스트 리뷰 | - |
-| v2 | JSON 구조화 응답 | - |
-| v3 | 심각도 기준 엄격 명시 + 오탐 방지 + 삭제 라인 제외 | 기본값 |
-
-> 설정 API `PUT /api/settings/claude`로 재배포 없이 프롬프트 버전 변경 가능.
-
-### 5-3. 심각도 기준
-
-| 레벨 | 기준 |
-|------|------|
-| HIGH (빨강) | 실제 보안 취약점만: 인증 우회, SQL Injection, 비밀번호 평문, 민감 정보 하드코딩 |
-| MEDIUM (노랑) | 기능 버그 가능성: NPE, 에러 처리 누락, 경쟁 조건, N+1 쿼리 |
-| LOW (초록) | 코드 가독성, 중복, 네이밍, 경미한 리팩토링 |
-
-> HIGH == 0 이면 배포 조건 충족. HIGH > 0 이면 배포 트리거 안 됨.
-
-### 5-4. Claude API 비용 최적화
-
-| 항목 | 변경 전 | 변경 후 |
-|------|---------|---------|
-| 모델 | Sonnet 4.6 ($3/$15 per 1M) | Haiku 4.5 ($1/$5 per 1M) |
-| 청크 수 | 무제한 (44청크 발생 가능) | 최대 10청크 (CLAUDE_MAX_CHUNKS) |
-| diff 필터 | 없음 | bin/, build/, out/ 경로 제외 |
-| PR당 비용 | ~$0.46 | ~$0.05 |
-| $5 크레딧 처리 가능 PR 수 | ~11건 | ~100건 |
+| 변수 | 필수 | 설명 |
+|------|------|------|
+| `WEBHOOK_SECRET` | ✅ | GitHub Webhook HMAC 서명 키 |
+| `JWT_SECRET` | ✅ | JWT 서명 키 (256비트 이상) |
+| `AES_SECRET_KEY` | ✅ | 커넥터 API 키 암호화 키 (32바이트 hex) |
+| `CLAUDE_API_KEY` | — | Anthropic API 키 |
+| `CLAUDE_MODEL` | — | 기본값: `claude-haiku-4-5-20251001` |
+| `OPENAI_API_KEY` | — | OpenAI API 키 |
+| `OPENAI_MODEL` | — | 기본값: `gpt-4o-mini` |
+| `GEMINI_API_KEY` | — | Google Gemini API 키 |
+| `SLACK_WEBHOOK_URL` | — | Slack Incoming Webhook URL |
+| `GITHUB_TOKEN` | — | PR 댓글 작성용 토큰 |
+| `PLAYWRIGHT_ENABLED` | — | `true` 시 실제 E2E 테스트 실행 (기본값: `false`) |
+| `CODEAI_API_KEY` | — | MCP 엔드포인트 인증 키 (`X-Api-Key`) |
 
 ---
 
-## 6. 데이터베이스 설계
+## Extending Codi
 
-### 6-1. ERD
+Codi는 5개 SPI 인터페이스로 모든 외부 연동을 추상화한다.  
+새 구현체를 Spring Bean으로 등록하면 대시보드에서 즉시 선택할 수 있다.
 
-```
-users (인증)
-
-repositories --1:N-- pipeline_executions --1:N-- pipeline_steps
-                             |
-                    +--------+--------+
-                    |                 |
-                  1:1               1:1
-                    v                 v
-              code_reviews       test_runs
-                    |                 |
-                  1:N               1:N
-                    v                 v
-           review_comments       test_cases
-
-pipeline_executions --1:N-- notification_messages
-
-system_settings (key-value 동적 설정)
-```
-
-### 6-2. 핵심 테이블
-
-| 테이블 | 역할 |
-|--------|------|
-| repositories | 연결된 GitHub 레포지토리 |
-| pipeline_executions | PR 1개 = 파이프라인 1개 (PENDING/RUNNING/SUCCESS/FAILED) |
-| pipeline_steps | 단계별 상태 (WEBHOOK/REVIEW/TEST/NOTIFY/DEPLOY) |
-| code_reviews | Claude 리뷰 결과 헤더 (건수, 토큰 사용량, 프롬프트 버전) |
-| review_comments | 이슈 개별 코멘트 (severity/filePath/lineNumber/content/suggestion) |
-| test_runs | Playwright 실행 결과 (PENDING/RUNNING/PASSED/FAILED) |
-| test_cases | 개별 테스트 케이스 (PASSED/FAILED/SKIPPED) |
-| notification_messages | Slack 발송 이력 |
-| system_settings | key-value 동적 설정 (slack URL, 프롬프트 버전 등) |
-
-### 6-3. system_settings 저장 키
-
-| 키 | 설명 |
-|----|------|
-| slack.webhook.url | Slack Incoming Webhook URL |
-| claude.prompt.version | 리뷰 프롬프트 버전 (v1/v2/v3) |
-| claude.max.tokens | Claude API 최대 토큰 |
-| github.last.connected.at | GitHub 마지막 연동 시각 |
-| slack.last.tested.at | Slack 마지막 테스트 시각 |
-
-### 6-4. JPA 규칙
+### 새 AI 엔진 추가
 
 ```kotlin
-// WebFlux 이벤트 루프 블로킹 방지 - 모든 JPA 호출은 반드시 IO 디스패처로 격리
-override suspend fun save(execution: PipelineExecution): PipelineExecution =
-    withContext(Dispatchers.IO) {
-        jpa.save(PipelineExecutionEntity.from(execution)).toDomain()
+@Component
+class MyAiEngine : AIReviewEngine {
+    override val id = "my-engine"
+    override val preferredPromptVersion = "v4"
+
+    override suspend fun review(diff: String, promptVersion: String): ReviewResult {
+        // AI API 호출 후 ReviewResult 반환
     }
+}
 ```
+
+등록 후 `PUT /api/connectors/ai` → `{ "activeProviders": ["my-engine"] }` 로 즉시 전환.
+
+### 새 알림 채널 추가
+
+```kotlin
+@Component
+class DiscordChannel : NotificationChannel {
+    override val id = "discord"
+
+    override suspend fun send(message: String, webhookUrl: String): Boolean { ... }
+}
+```
+
+### 확장 가능한 SPI 목록
+
+| SPI | V1 구현체 | 확장 예시 |
+|-----|-----------|---------|
+| `AIReviewEngine` | Claude · GPT-4o · Gemini | Ollama (로컬 LLM) |
+| `VCSProvider` | GitHub | GitLab · Bitbucket |
+| `NotificationChannel` | Slack | Discord · Teams |
+| `TestRunner` | Playwright | Cypress |
+| `DeployProvider` | GitHub Actions | Jenkins · ArgoCD |
 
 ---
 
-## 7. 기술 스택
+## MCP Integration
 
-| 레이어 | 기술 | 버전 | 비고 |
-|--------|------|------|------|
-| 언어 | Kotlin | 1.9.23 | JVM 21 |
-| 백엔드 | Spring Boot WebFlux | 3.2.5 | Reactive, 코루틴 |
-| 프론트엔드 | React 18 + Vite 5 | 18 / 5 | TailwindCSS 3, Zustand, React Router v6 |
-| DB | PostgreSQL | 15 | Flyway V1~V4 마이그레이션 |
-| 캐시/큐 | Redis 7 | - | Redis Stream (Consumer Group) + TTL 캐시 |
-| AI | Claude API | haiku-4-5-20251001 | .env CLAUDE_MODEL로 교체 가능 |
-| 인증 | JWT (HMAC-SHA256) | jjwt 0.12.6 | |
-| 모니터링 | Prometheus + Grafana | latest | /actuator/prometheus |
-| 인프라 | Docker Compose | - | api / postgres / redis / prometheus / grafana |
+Claude Desktop · Cursor에서 Codi의 도구를 직접 호출할 수 있다.
 
----
-
-## 8. 프로젝트 구조
-
-```
-Codi/
-+-- codeai-backend/
-|   +-- src/main/kotlin/com/codeai/
-|   |   +-- presentation/                  # Presentation Layer
-|   |   |   +-- webhook/
-|   |   |   |   +-- WebhookController.kt   # POST /webhook/github (action 필터링)
-|   |   |   |   +-- HmacValidator.kt       # HMAC-SHA256 서명 검증
-|   |   |   +-- pipeline/
-|   |   |   |   +-- PipelineController.kt  # GET /api/pipelines/*
-|   |   |   +-- auth/
-|   |   |   |   +-- AuthController.kt      # POST /api/auth/signup|login|logout
-|   |   |   +-- settings/
-|   |   |   |   +-- SettingsController.kt  # GET/PUT /api/settings/**
-|   |   |   +-- common/
-|   |   |       +-- ApiResponse.kt         # 공통 응답 래퍼
-|   |   |       +-- GlobalExceptionHandler.kt
-|   |   |
-|   |   +-- application/                   # Application Layer (Use Cases)
-|   |   |   +-- webhook/WebhookProcessUseCase.kt  # 중복 방지 + Redis publish
-|   |   |   +-- review/ReviewUseCase.kt           # Claude API 오케스트레이션
-|   |   |   +-- testrun/TestRunUseCase.kt          # Playwright 실행
-|   |   |   +-- notification/NotifyUseCase.kt      # Slack 발송
-|   |   |   +-- deploy/DeployUseCase.kt            # GitHub Actions 트리거
-|   |   |   +-- pipeline/PipelineQueryUseCase.kt   # 조회/통계
-|   |   |   +-- auth/AuthUseCase.kt                # 회원가입/로그인
-|   |   |   +-- settings/SettingsUseCase.kt        # 설정 CRUD
-|   |   |
-|   |   +-- domain/                        # Domain Layer
-|   |   |   +-- pipeline/                  # PipelineExecution, PipelineStep
-|   |   |   +-- review/                    # CodeReview, ReviewComment, ReviewSeverity(VO)
-|   |   |   +-- testrun/                   # TestRun, TestCase
-|   |   |   +-- user/                      # User
-|   |   |   +-- event/                     # ReviewCompleted, TestRunCompleted
-|   |   |
-|   |   +-- infrastructure/                # Infrastructure Layer
-|   |       +-- ai/
-|   |       |   +-- ClaudeApiClient.kt     # claudeMapper (lenient), 청크 처리
-|   |       |   +-- ClaudeReviewPrompt.kt  # v1/v2/v3 프롬프트 (오탐 방지 규칙)
-|   |       |   +-- DiffTokenizer.kt
-|   |       |   +-- MaskingUtil.kt
-|   |       +-- queue/
-|   |       |   +-- RedisStreamConsumer.kt # 파이프라인 오케스트레이터 (async/awaitAll)
-|   |       |   +-- RedisStreamProducer.kt
-|   |       +-- github/
-|   |       |   +-- GitHubApiClient.kt
-|   |       |   +-- GitHubPrCommentClient.kt  # 심각도 순 정렬 + 상위 20건
-|   |       |   +-- GitHubActionsClient.kt    # workflow_dispatch
-|   |       +-- playwright/
-|   |       |   +-- PlaywrightRunner.kt    # enabled 플래그, 비활성화 시 PASSED
-|   |       |   +-- PlaywrightResultParser.kt
-|   |       +-- security/
-|   |       |   +-- JwtProvider.kt
-|   |       |   +-- JwtAuthFilter.kt      # 토큰 파싱+SecurityContext만, 차단 없음
-|   |       +-- slack/
-|   |       |   +-- SlackWebhookClient.kt
-|   |       |   +-- SlackMessageBuilder.kt  # 스킵/통과/실패 3가지 상태
-|   |       +-- cache/PipelineCacheService.kt  # Redis TTL 60초
-|   |       +-- persistence/              # JPA Entity + Repository 구현체
-|   |       +-- config/
-|   |           +-- SecurityConfig.kt     # permitAll() 단독 관리
-|   |           +-- WebFluxConfig.kt      # CORS
-|   |
-|   +-- src/main/resources/
-|       +-- application.yml               # 전체 설정 (env 변수, forward-headers)
-|       +-- db/migration/                 # V1~V4 Flyway SQL
-|
-+-- codeai-frontend/
-|   +-- src/                              # React 18 + Vite 5 + JavaScript + Zustand
-|   |   +-- pages/                        # DashboardPage, PipelineListPage 등
-|   |   +-- components/                   # layout, pipeline, auth, settings, ui
-|   |   +-- store/                        # Zustand 전역 상태
-|   |   +-- hooks/                        # 데이터 패칭 커스텀 훅
-|   |   +-- lib/                          # Axios 인스턴스, API 함수
-|   +-- Dockerfile                        # Vite 빌드 -> Nginx 서빙
-|   +-- nginx.conf                        # SPA history 라우팅 fallback
-|
-+-- .github/workflows/
-|   +-- deploy.yml                        # workflow_dispatch 트리거 배포
-|
-+-- docker-compose.yml                    # api/postgres/redis/prometheus/grafana
-+-- .env.example
-```
-
----
-
-## 9. 빠른 시작
-
-### 9-1. 전제 조건
-
-- Docker & Docker Compose
-- GitHub 레포지토리 + Webhook 설정 (Content type: application/json)
-- Anthropic API 키
-
-### 9-2. 전체 스택 실행
-
-```bash
-# 1. 환경변수 설정
-cp .env.example .env
-# .env 파일에서 WEBHOOK_SECRET, JWT_SECRET 반드시 설정 (없으면 서버 기동 실패)
-
-# 2. 전체 스택 실행
-docker compose up -d
-
-# 3. 헬스체크
-curl http://localhost:8080/actuator/health
-```
-
-### 9-3. 로컬 개발
-
-```bash
-# 백엔드
-cd codeai-backend
-./gradlew bootRun
-
-# 프론트엔드 (별도 터미널)
-cd codeai-frontend
-npm install
-npm run dev   # http://localhost:5173 -- /api, /webhook -> 8080 프록시
-
-# 컴파일 확인
-cd codeai-backend && ./gradlew compileKotlin
-```
-
-### 9-4. Swagger UI
-
-```
-http://localhost:8080/swagger-ui.html
-
-# ngrok 사용 시: application.yml에 아래 설정 필요 (HTTPS 자동 감지)
-server:
-  forward-headers-strategy: framework
-```
-
-### 9-5. GitHub Webhook 설정
-
-```
-URL:          https://{서버}/webhook/github
-Content type: application/json
-Secret:       .env의 WEBHOOK_SECRET 값
-Events:       Pull requests
-```
-
-> 처리 action: opened, synchronize, reopened
-> 무시 action: closed(merge), labeled, assigned, edited 등
-
-### 9-6. Redis 캐시 초기화
-
-```bash
-docker exec codeai-redis redis-cli FLUSHALL
-```
-
----
-
-## 10. API 명세
-
-### 10-1. 공통 응답 형식
-
+`claude_desktop_config.json`:
 ```json
-// 성공
-{ "success": true, "data": {...}, "message": "OK", "error": null }
-
-// 실패
-{ "success": false, "data": null, "message": null,
-  "error": { "code": "UNAUTHORIZED", "message": "인증이 필요합니다" } }
-```
-
-### 10-2. API 목록
-
-#### Webhook (HMAC 서명 검증)
-
-| # | Method | Path | 설명 |
-|---|--------|------|------|
-| 1 | POST | /webhook/github | GitHub PR 이벤트 수신 (action 필터링) |
-
-```
-Request Headers:
-  X-Hub-Signature-256: sha256=<HMAC>
-  X-GitHub-Event: pull_request
-
-Response 200 (처리):
-  { "success": true, "data": { "pipelineExecutionId": 21 }, "message": "이벤트 수신 완료" }
-
-Response 200 (무시):
-  { "success": true, "data": { "message": "ignored", "action": "closed" }, "message": "처리 대상 아님 (action=closed)" }
-
-Response 403:
-  { "success": false, "error": { "code": "WEBHOOK_SIGNATURE_INVALID", "message": "서명 검증 실패" } }
-```
-
-#### 파이프라인 (Bearer JWT 필요)
-
-| # | Method | Path | 설명 |
-|---|--------|------|------|
-| 2 | GET | /api/pipelines | 목록 조회 (?status=&from=&to=&page=&size=) |
-| 3 | GET | /api/pipelines/{id} | 상세 조회 (리뷰+테스트+알림 포함) |
-| 4 | GET | /api/pipelines/stats | 통계 (?period=7d\|30d\|90d) |
-
-```json
-// GET /api/pipelines/{id} 응답 예시
 {
-  "data": {
-    "id": 21,
-    "prTitle": "feat: 로그인 기능 추가",
-    "status": "SUCCESS",
-    "review": {
-      "promptVersion": "v3",
-      "highCount": 0, "mediumCount": 2, "lowCount": 3,
-      "tokensUsed": 46871
-    },
-    "testRun": { "status": "PASSED", "totalTests": 0 },
-    "steps": [
-      { "stepType": "REVIEW", "status": "SUCCESS", "durationSeconds": 71 },
-      { "stepType": "TEST",   "status": "SUCCESS", "durationSeconds": 1 }
-    ]
+  "mcpServers": {
+    "codi": {
+      "url": "http://localhost:8080/sse",
+      "headers": { "X-Api-Key": "<CODEAI_API_KEY>" }
+    }
   }
 }
 ```
 
-#### 인증 (인증 불필요)
-
-| # | Method | Path | 설명 |
-|---|--------|------|------|
-| 5 | POST | /api/auth/register | 회원가입 (/api/auth/signup 별칭 동일) |
-| 6 | POST | /api/auth/login | 로그인 -> { token, expiresIn } |
-| 7 | POST | /api/auth/logout | 로그아웃 (stateless, 프론트에서 토큰 삭제) |
-
-#### 설정 (Bearer JWT 필요)
-
-| # | Method | Path | 설명 |
-|---|--------|------|------|
-| 8 | GET | /api/settings | 전체 설정 조회 |
-| 9 | GET/PUT | /api/settings/github | GitHub Webhook Secret (응답에 값 미포함) |
-| 10 | GET/PUT | /api/settings/slack | Slack Webhook URL |
-| 11 | POST | /api/settings/slack/test | Slack 테스트 메시지 발송 |
-| 12 | GET/PUT | /api/settings/claude | 프롬프트 버전, max tokens |
-
-#### 헬스 (인증 불필요)
-
-| # | Method | Path | 설명 |
-|---|--------|------|------|
-| 13 | GET | /actuator/health | 헬스체크 |
-| 14 | GET | /actuator/prometheus | Prometheus 메트릭 |
-
-### 10-3. 에러 코드
-
-| 에러 코드 | HTTP | 설명 |
-|-----------|------|------|
-| UNAUTHORIZED | 401 | JWT 없음/만료 |
-| WEBHOOK_SIGNATURE_INVALID | 403 | HMAC 서명 불일치 |
-| AUTH_INVALID_CREDENTIALS | 401 | 이메일/비밀번호 불일치 |
-| AUTH_EMAIL_ALREADY_EXISTS | 409 | 이미 가입된 이메일 |
-| PIPELINE_NOT_FOUND | 404 | 존재하지 않는 파이프라인 |
-| CLAUDE_API_ERROR | 502 | Claude API 호출 실패 |
-| SLACK_WEBHOOK_ERROR | 502 | Slack 발송 실패 |
-| SLACK_WEBHOOK_NOT_CONFIGURED | 400 | Slack URL 미설정 |
+사용 가능한 도구: `get_pr_diff` · `post_review_comment` · `run_e2e_tests` · `trigger_deploy` · `send_notification` · `mask_secrets`
 
 ---
 
-## 11. 배포 구성
+## License
 
-### 11-1. 환경 변수
-
-| 변수 | 기본값 | 설명 |
-|------|--------|------|
-| WEBHOOK_SECRET | **없음 (필수)** | GitHub Webhook HMAC 서명 키 |
-| JWT_SECRET | **없음 (필수)** | JWT 서명 키 (256비트 이상) |
-| CLAUDE_API_KEY | placeholder | Anthropic API 키 |
-| CLAUDE_MODEL | claude-haiku-4-5-20251001 | 재배포 없이 모델 교체 |
-| CLAUDE_MAX_CHUNKS | 10 | PR diff 최대 청크 수 |
-| SLACK_WEBHOOK_URL | placeholder | Slack Incoming Webhook URL |
-| GITHUB_TOKEN | placeholder | PR 댓글 작성용 토큰 |
-| PLAYWRIGHT_ENABLED | false | true 시 실제 E2E 테스트 실행 |
-
-> **필수 항목 (기본값 없음)**: WEBHOOK_SECRET, JWT_SECRET 미설정 시 서버 기동 즉시 실패.
-
-### 11-2. Docker Compose
-
-```bash
-# 전체 실행
-docker compose up -d
-
-# 강제 재빌드 (소스 변경 후 CACHED 문제 시)
-docker compose build --no-cache api && docker compose up -d api
-
-# 로그 확인
-docker compose logs -f api
-```
-
-### 11-3. GitHub Actions
-
-`.github/workflows/deploy.yml` - workflow_dispatch 트리거 방식.
-아래 GitHub Secrets 등록 필요:
-
-| Secret | 용도 |
-|--------|------|
-| DOCKER_USERNAME | Docker Hub 로그인 |
-| DOCKER_PASSWORD | Docker Hub 패스워드 |
-| DEPLOY_HOST | 배포 서버 IP |
-| DEPLOY_USER | SSH 접속 유저 |
-| DEPLOY_SSH_KEY | SSH 개인키 |
-
-> **주의**: workflow_dispatch의 ref는 브랜치명이어야 함. commit SHA 전달 시 422 에러.
-
-### 11-4. Playwright E2E 테스트 (현재 비활성화)
-
-```yaml
-# .env
-PLAYWRIGHT_ENABLED=false    # 기본값 - 0건/PASSED 처리, 배포 조건 통과
-# PLAYWRIGHT_ENABLED=true   # 실제 실행 (npx playwright test 필요)
-```
-
-JVM 컨테이너에는 Node.js가 없으므로 실제 실행 시 방법:
-- 방법 A: 백엔드 Dockerfile에 Node.js 설치
-- 방법 B: PLAYWRIGHT_USE_DOCKER=true + docker.sock 마운트 + 프론트 소스 볼륨
-
-### 11-5. 모니터링
-
-- Prometheus: http://localhost:9090
-- Grafana: http://localhost:3000
-- 헬스체크: GET /actuator/health
-- 메트릭: GET /actuator/prometheus
-
----
-
-## 12. 트러블슈팅 / 개발 메모
-
-### 12-1. v0.3 업데이트 시 겪었던 이슈
-
-| 이슈 | 원인 | 해결 |
-|------|------|------|
-| PR diff 25청크 -> 비용 급증 ($0.46/PR) | Sonnet 모델 + 청크 수 무제한 + bin/ 컴파일 산출물 포함 | Haiku 교체 + 최대 10청크 제한 + bin/ diff 필터 -> ~$0.05/PR |
-| AI 리뷰 결과가 항상 빈 목록 | Claude가 JSON을 마크다운 코드블록으로 래핑해 파싱 실패 | removePrefix("```json") + removeSuffix("```") 전처리 |
-| Claude 응답 JSON 잘림 (JsonEOFException) | suggestion에 멀티라인 코드 블록 포함 -> max_tokens 초과 | 프롬프트에 "1문장 텍스트만" 명시 + recoverTruncatedJson() 복구 로직 |
-| HIGH 과다 판정 (성능 이슈도 HIGH) | 프롬프트에 HIGH 기준 모호, 삭제 라인도 분석 | v3 프롬프트: HIGH=보안취약점만 명시, "-" 라인 제외 규칙 |
-| bin/ 파일이 AI 이중 분석 | .gitignore에 bin/ 누락 -> IntelliJ 컴파일 산출물이 Git 추적됨 | .gitignore 추가 + git rm -r --cached codeai-backend/bin/ |
-| TestRunUseCase, DeployUseCase 동작 안 함 | RedisStreamConsumer가 ReviewUseCase만 호출, 나머지 미연결 | Consumer에 TestRunUseCase, DeployUseCase 주입 + async/awaitAll |
-| Webhook 이중 파이프라인 (10초 재전송) | GitHub가 10초 내 응답 없으면 자동 재전송 | findActive()로 PENDING/RUNNING 상태 체크 후 재사용 |
-| Claude API 429 (Rate Limit) | Tier 1 한도 (10K tokens/min) 초과. 10청크 x 2K output = 20K/min | 중복 파이프라인 방지 + Anthropic $5 충전 -> Tier 2 자동 승격 |
-
-### 12-2. v0.4 패치 시 겪었던 이슈
-
-| 이슈 | 원인 | 해결 |
-|------|------|------|
-| POST /api/auth/signup -> 401 (SecurityConfig에 추가해도) | JwtAuthFilter가 Spring Security보다 먼저 실행. 자체 publicPaths로 차단 -> SecurityConfig.permitAll()이 평가되지 않음 | JwtAuthFilter에서 publicPaths 완전 제거. 토큰 파싱+SecurityContext만 담당. 접근 제어는 SecurityConfig 단독 |
-| Swagger "Failed to fetch" (ngrok HTTPS 환경) | ngrok이 X-Forwarded-Proto: https 전달하지만 Spring이 무시 -> springdoc 서버 URL이 http:// 생성 -> 브라우저 Mixed Content 차단 | application.yml에 server.forward-headers-strategy: framework |
-| Playwright IOException: error 2 (No such file or directory) | 백엔드 JVM 컨테이너(OpenJDK)에 Node.js/npx 미설치 | playwright.enabled: false 플래그 추가. 비활성화 시 0건/PASSED 즉시 반환 -> 배포 조건 통과 |
-| PR 댓글에 HIGH 이슈가 안 보임 | comments.take(20) 전 정렬 없음 -> Claude가 LOW를 먼저 반환하면 HIGH가 21번째 이후 배치 | sortedBy { severityOrder[it.severity] } 후 take(20) |
-| 동일 PR에 파이프라인 2회 실행 (merge 시 추가) | WebhookController가 pull_request action을 무시하고 closed(merge)/labeled 등 모든 이벤트에서 파이프라인 생성 | action !in setOf("opened","synchronize","reopened") 이면 즉시 무시 반환 |
-| Unrecognized character escape '$' 재발 (복구 후에도) | 기존 replace 수정이 유효한 JSON escape를 무효로 오염. 두 번째 문자를 매칭해 치환 -> 앞 backslash 남아 invalid | claudeMapper에 ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER=true. 수동 replace 제거 |
-| 도메인 필드 val password: String을 "평문 저장" HIGH로 오분류 | Claude Haiku가 diff 청크만 보고 같은 청크에 passwordEncoder가 없으면 평문으로 추정 | v3 프롬프트 오탐 방지 규칙: "필드 선언만으로 HIGH 금지, 같은 diff에 평문 저장 코드 명확히 보여야만 HIGH" |
-| Slack 완료 알림이 스킵/통과/실패 구분 없음 | SlackMessageBuilder가 totalTests==0 케이스 미처리. 항상 "테스트 완료" 출력 | totalTests==0 -> "Playwright 테스트 스킵 (비활성화)" 회색 / passed -> 녹색 / else -> 빨강 |
-
-### 12-3. Spring WebFlux + Security 설계 원칙
-
-```
-잘못된 구조 (이중 관리):
-  JwtAuthFilter.publicPaths  <- 1차 게이트 (필터 레이어)
-  SecurityConfig.permitAll() <- 2차 게이트 (Security 레이어)
-  -> 두 곳 중 하나라도 빠지면 401 발생
-  -> addFilterBefore(AUTHENTICATION)로 필터가 먼저 실행되므로 Spring Security가 아예 평가 안 됨
-
-올바른 구조 (단일 관리):
-  JwtAuthFilter: 토큰 파싱 + SecurityContext 설정만. 401 반환 없음. 항상 chain.filter() 호출
-  SecurityConfig.permitAll(): 공개 경로 접근 제어 단독 담당
-  -> 경로 추가는 SecurityConfig 한 곳만 수정
-```
-
-### 12-4. Claude JSON 파싱 원칙
-
-```kotlin
-// 잘못된 방법: 수동 문자열 치환은 유효한 JSON escape를 오염시킬 수 있음
-// cleanJson.replace("\\$", "$")  // 위험 - JSON 구조 파손 가능
-
-// 올바른 방법: Jackson lenient 파서 사용
-private val claudeMapper = ObjectMapper()
-    .configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true)
-// 비표준 이스케이프(\$, \(, \[ 등)를 해당 문자로 처리, 유효 JSON 구조 보존
-```
-
-### 12-5. 자주 발생하는 오류 빠른 참조
-
-| 에러 | 원인 | 해결 |
-|------|------|------|
-| Connection refused: 5432 | PostgreSQL 미실행 | docker compose up -d postgres |
-| Connection refused: 6379 | Redis 미실행 | docker compose up -d redis |
-| BUSYGROUP Consumer Group already exists | 서버 재시작 시 정상 발생 | onErrorComplete로 무시 - 정상 동작 |
-| Claude API 400 | deprecated 모델 ID 또는 크레딧 부족 | 에러 본문 확인 후 모델 교체 또는 크레딧 충전 |
-| Claude API 429 | Rate Limit (Tier 1: 10K tokens/min) | 중복 파이프라인 방지 + Anthropic $5 충전 -> Tier 2 자동 승격 |
-| workflow_dispatch 422 | ref에 commit SHA 전달 | ref는 반드시 브랜치명으로 전달 |
-| COPY src src -> CACHED (Docker 재빌드 미반영) | Docker BuildKit 레이어 캐시 | docker compose build --no-cache api |
-| ClassCastException: PipelineListResponse | Redis 캐시 역직렬화 실패 | docker exec codeai-redis redis-cli FLUSHDB |
-| Could not resolve placeholder WEBHOOK_SECRET | .env 필수값 누락 | .env에 WEBHOOK_SECRET, JWT_SECRET 추가 |
-
----
-
-## 팀 구성
-
-| 팀 | 담당 | 주요 파일 |
-|----|------|-----------|
-| 박성훈 (BE) | 백엔드 전체, Redis, AI 연동, 파이프라인 | codeai-backend/src/** |
-| 강미현 (FE) | 프론트엔드 대시보드, 파이프라인 화면 | codeai-frontend/src/** |
-| 신창희 (FE) | 인증, 설정 화면, API 연동 | codeai-frontend/src/** |
-
----
-
-## 개발 메모
-
-- **커밋 스타일**: Conventional Commits + 한국어. 예: fix(review): PR 댓글 심각도 순 정렬
-- **JPA 호출**: 반드시 withContext(Dispatchers.IO) 안에서 실행
-- **모델 교체**: .env에 CLAUDE_MODEL=claude-sonnet-4-6 -> 재배포 없이 교체
-- **설정값**: DB system_settings 테이블 (key-value). SettingsStore.get/set(key) 사용
-- **docs/**: .gitignore에 포함됨 - 트러블슈팅 등 문서는 Git 미추적
-
----
-
-SMU 종합설계 프로젝트 · 팀 코디(Code AI) · 2026
+[MIT](LICENSE) © 2026 Team Codi
