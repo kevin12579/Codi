@@ -13,9 +13,8 @@ class NotificationMessageEntity(
     @Column(name = "pipeline_execution_id", nullable = false)
     val pipelineExecutionId: Long,
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    val channel: NotificationChannel,
+    @Column(name = "channel_id", nullable = false)
+    val channelId: String,
 
     @Column(nullable = false, columnDefinition = "TEXT")
     val message: String,
@@ -35,14 +34,14 @@ class NotificationMessageEntity(
 ) {
     fun toDomain() = NotificationMessage(
         id = id, pipelineExecutionId = pipelineExecutionId,
-        channel = channel, message = message, status = status,
+        channelId = channelId, message = message, status = status,
         sentAt = sentAt, errorMessage = errorMessage, createdAt = createdAt
     )
 
     companion object {
         fun from(d: NotificationMessage) = NotificationMessageEntity(
             id = d.id, pipelineExecutionId = d.pipelineExecutionId,
-            channel = d.channel, message = d.message, status = d.status,
+            channelId = d.channelId, message = d.message, status = d.status,
             sentAt = d.sentAt, errorMessage = d.errorMessage, createdAt = d.createdAt
         )
     }

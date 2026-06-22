@@ -29,14 +29,11 @@ data class PipelineSummary(
     val durationSeconds: Long?
 ) {
     companion object {
-        fun from(e: PipelineExecution) = PipelineSummary(
-            id = e.id,
-            repositoryFullName = e.prUrl
-                .removePrefix("https://github.com/")
-                .substringBefore("/pull/"),
+        fun from(e: PipelineExecution, repoFullName: String) = PipelineSummary(
+            id = e.id, repositoryFullName = repoFullName,
             prNumber = e.prNumber, prTitle = e.prTitle,
             prAuthor = e.prAuthor, status = e.status.name,
-            vcsId = "github", // V1: VCS 단일(GitHub). 멀티 VCS는 V2에서 컬럼 추가.
+            vcsId = e.vcsId,
             startedAt = e.startedAt, completedAt = e.completedAt,
             durationSeconds = e.durationSeconds
         )
@@ -46,6 +43,7 @@ data class PipelineSummary(
 data class PipelineDetailResponse(
     val id: Long,
     val repositoryFullName: String,
+    val vcsId: String,
     val prNumber: Int,
     val prTitle: String,
     val prUrl: String,
@@ -127,7 +125,7 @@ data class TestRunSummary(
 ) {
     companion object {
         fun from(t: TestRun) = TestRunSummary(
-            runnerId = "playwright", // V1: 테스트 러너 단일(Playwright).
+            runnerId = t.runnerId,
             status = t.status.name, totalTests = t.totalTests,
             passed = t.passed, failed = t.failed, coveragePct = t.coveragePct
         )
@@ -140,9 +138,8 @@ data class NotificationSummary(
     val sentAt: LocalDateTime?
 ) {
     companion object {
-        // 프론트 계약: channelId 는 소문자 플러그인 ID. (DB enum SLACK → "slack")
         fun from(n: NotificationMessage) = NotificationSummary(
-            channelId = n.channel.name.lowercase(), status = n.status.name, sentAt = n.sentAt
+            channelId = n.channelId, status = n.status.name, sentAt = n.sentAt
         )
     }
 }

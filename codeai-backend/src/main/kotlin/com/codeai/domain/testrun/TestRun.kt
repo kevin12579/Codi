@@ -5,6 +5,7 @@ import java.time.LocalDateTime
 data class TestRun(
     val id: Long = 0,
     val pipelineExecutionId: Long,
+    val runnerId: String = "playwright",
     val status: TestRunStatus = TestRunStatus.PENDING,
     val totalTests: Int = 0,
     val passed: Int = 0,

@@ -14,6 +14,9 @@ class PipelineExecutionEntity(
     @Column(name = "repository_id", nullable = false)
     val repositoryId: Long,
 
+    @Column(name = "vcs_id", nullable = false)
+    val vcsId: String = "github",
+
     @Column(name = "pr_number", nullable = false)
     val prNumber: Int,
 
@@ -29,6 +32,9 @@ class PipelineExecutionEntity(
     @Column(name = "head_sha", nullable = false)
     val headSha: String,
 
+    @Column(name = "head_branch")
+    val headBranch: String? = null,
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: PipelineStatus = PipelineStatus.PENDING,
@@ -43,18 +49,20 @@ class PipelineExecutionEntity(
     val createdAt: LocalDateTime = LocalDateTime.now()
 ) {
     fun toDomain() = PipelineExecution(
-        id = id, repositoryId = repositoryId, prNumber = prNumber,
-        prTitle = prTitle, prUrl = prUrl, prAuthor = prAuthor,
-        headSha = headSha, status = status,
-        startedAt = startedAt, completedAt = completedAt, createdAt = createdAt
+        id = id, repositoryId = repositoryId, vcsId = vcsId,
+        prNumber = prNumber, prTitle = prTitle, prUrl = prUrl,
+        prAuthor = prAuthor, headSha = headSha, headBranch = headBranch,
+        status = status, startedAt = startedAt, completedAt = completedAt,
+        createdAt = createdAt
     )
 
     companion object {
         fun from(d: PipelineExecution) = PipelineExecutionEntity(
-            id = d.id, repositoryId = d.repositoryId, prNumber = d.prNumber,
-            prTitle = d.prTitle, prUrl = d.prUrl, prAuthor = d.prAuthor,
-            headSha = d.headSha, status = d.status,
-            startedAt = d.startedAt, completedAt = d.completedAt, createdAt = d.createdAt
+            id = d.id, repositoryId = d.repositoryId, vcsId = d.vcsId,
+            prNumber = d.prNumber, prTitle = d.prTitle, prUrl = d.prUrl,
+            prAuthor = d.prAuthor, headSha = d.headSha, headBranch = d.headBranch,
+            status = d.status, startedAt = d.startedAt, completedAt = d.completedAt,
+            createdAt = d.createdAt
         )
     }
 }

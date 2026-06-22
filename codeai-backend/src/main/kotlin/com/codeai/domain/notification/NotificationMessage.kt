@@ -5,7 +5,7 @@ import java.time.LocalDateTime
 data class NotificationMessage(
     val id: Long = 0,
     val pipelineExecutionId: Long,
-    val channel: NotificationChannel,
+    val channelId: String,       // 설계 §3: 소문자 플러그인 ID ("slack", "discord", "teams")
     val message: String,
     val status: NotificationStatus = NotificationStatus.PENDING,
     val sentAt: LocalDateTime? = null,

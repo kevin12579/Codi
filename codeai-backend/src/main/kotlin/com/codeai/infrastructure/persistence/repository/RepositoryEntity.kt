@@ -25,6 +25,15 @@ class RepositoryEntity(
     @Column(name = "webhook_secret", nullable = false)
     val webhookSecret: String,
 
+    @Column(name = "vcs_id", nullable = false)
+    val vcsId: String = "github",
+
+    @Column
+    val url: String? = null,
+
+    @Column(name = "default_branch", nullable = false)
+    val defaultBranch: String = "main",
+
     @Column(name = "is_active", nullable = false)
     val isActive: Boolean = true,
 
@@ -37,6 +46,7 @@ class RepositoryEntity(
     fun toDomain() = Repository(
         id = id, githubRepoId = githubRepoId, owner = owner,
         name = name, fullName = fullName, webhookSecret = webhookSecret,
+        vcsId = vcsId, url = url, defaultBranch = defaultBranch,
         isActive = isActive, createdAt = createdAt
     )
 
@@ -44,6 +54,7 @@ class RepositoryEntity(
         fun from(d: Repository) = RepositoryEntity(
             id = d.id, githubRepoId = d.githubRepoId, owner = d.owner,
             name = d.name, fullName = d.fullName, webhookSecret = d.webhookSecret,
+            vcsId = d.vcsId, url = d.url, defaultBranch = d.defaultBranch,
             isActive = d.isActive, createdAt = d.createdAt
         )
     }

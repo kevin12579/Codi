@@ -2,7 +2,7 @@ package com.codeai.application.notification
 
 import com.codeai.domain.event.ReviewCompleted
 import com.codeai.domain.event.TestRunCompleted
-import com.codeai.domain.notification.NotificationChannel
+import com.codeai.domain.notification.NotificationChannelId
 import com.codeai.domain.notification.NotificationMessage
 import com.codeai.domain.notification.NotificationRepository
 import com.codeai.infrastructure.persistence.settings.SettingsStore
@@ -42,7 +42,7 @@ class NotifyUseCase(
             notificationRepository.save(
                 NotificationMessage(
                     pipelineExecutionId = pipelineExecutionId,
-                    channel = NotificationChannel.SLACK,
+                    channelId = NotificationChannelId.SLACK,
                     message = objectMapper.writeValueAsString(payload)
                 ).markFailed("Slack Webhook URL 미설정")
             )
@@ -52,7 +52,7 @@ class NotifyUseCase(
         val notification = notificationRepository.save(
             NotificationMessage(
                 pipelineExecutionId = pipelineExecutionId,
-                channel = NotificationChannel.SLACK,
+                channelId = NotificationChannelId.SLACK,
                 message = objectMapper.writeValueAsString(payload)
             )
         )

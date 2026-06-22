@@ -9,6 +9,9 @@ data class Repository(
     val name: String,
     val fullName: String,
     val webhookSecret: String,
+    val vcsId: String = "github",
+    val url: String? = null,
+    val defaultBranch: String = "main",
     val isActive: Boolean = true,
     val createdAt: LocalDateTime = LocalDateTime.now()
 )
