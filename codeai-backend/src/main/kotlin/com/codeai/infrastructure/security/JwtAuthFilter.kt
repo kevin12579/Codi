@@ -24,8 +24,10 @@ class JwtAuthFilter(private val jwtProvider: JwtProvider) : WebFilter {
 
         val userId = jwtProvider.getUserId(token)
         val email = jwtProvider.getEmail(token)
+        val role = jwtProvider.getRole(token)
+
         val auth = UsernamePasswordAuthenticationToken(
-            userId, null, listOf(SimpleGrantedAuthority("ROLE_USER"))
+            userId, null, listOf(SimpleGrantedAuthority("ROLE_$role"))
         ).apply { details = email }
 
         return chain.filter(exchange)
