@@ -4,10 +4,10 @@ import com.codeai.application.notification.NotifyUseCase
 import com.codeai.domain.event.ReviewCompleted
 import com.codeai.domain.pipeline.PipelineRepository
 import com.codeai.domain.review.*
-import com.codeai.infrastructure.ai.ClaudeApiClient
+import com.codeai.infrastructure.cache.PipelineCacheService
 import com.codeai.infrastructure.github.CommentItem
-import com.codeai.infrastructure.github.GitHubApiClient
 import com.codeai.infrastructure.github.GitHubPrCommentClient
+import com.codeai.plugin.registry.ProviderRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -16,10 +16,10 @@ import org.springframework.stereotype.Service
 class ReviewUseCase(
     private val pipelineRepository: PipelineRepository,
     private val reviewRepository: CodeReviewRepository,
-    private val gitHubApiClient: GitHubApiClient,
     private val gitHubPrCommentClient: GitHubPrCommentClient,
-    private val claudeApiClient: ClaudeApiClient,
+    private val registry: ProviderRegistry,
     private val notifyUseCase: NotifyUseCase,
+    private val cache: PipelineCacheService,
     @Value("\${codeai.review.prompt-version:v3}") private val promptVersion: String
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
@@ -34,17 +34,20 @@ class ReviewUseCase(
     ) {
         val execution = pipelineRepository.findById(pipelineExecutionId)
             ?: throw NoSuchElementException("PipelineExecution not found: $pipelineExecutionId")
-        pipelineRepository.save(execution.start())
+        val startedExecution = pipelineRepository.save(execution.start())
 
+        val engine = registry.activeAiEngine()
+        val effectivePromptVersion = engine.preferredPromptVersion ?: promptVersion
         var review = reviewRepository.save(
-            CodeReview(pipelineExecutionId = pipelineExecutionId, promptVersion = promptVersion)
+            CodeReview(pipelineExecutionId = pipelineExecutionId, engineId = engine.id, promptVersion = effectivePromptVersion)
         )
 
         try {
-            val diff = gitHubApiClient.getPrDiff(repoFullName, prNumber)
-            log.info("PR diff 획득: $repoFullName#$prNumber, ${diff.length}자")
+            val vcs = registry.resolveVcs()
+            val diff = vcs.getDiff(repoFullName, prNumber)
+            log.info("PR diff 획득: $repoFullName#$prNumber, ${diff.length}자, 엔진=${engine.id}, 프롬프트=$effectivePromptVersion")
 
-            val reviewResult = claudeApiClient.review(diff, promptVersion)
+            val reviewResult = engine.review(diff, effectivePromptVersion)
 
             val savedComments = reviewResult.comments.map { parsed ->
                 reviewRepository.saveComment(
@@ -68,12 +71,14 @@ class ReviewUseCase(
                 savedComments.count { it.severity == ReviewSeverity.LOW },
                 commentItems
             )
-            val githubCommentId = gitHubPrCommentClient.createComment(repoFullName, prNumber, commentBody)
+            val githubCommentId = vcs.postReviewComment(repoFullName, prNumber, commentBody)
 
             review = reviewRepository.save(
                 review.complete(savedComments, reviewResult.tokensUsed, githubCommentId)
             )
-            pipelineRepository.save(execution.complete())
+            pipelineRepository.save(startedExecution.complete())
+            cache.evict(PipelineCacheService.detailKey(pipelineExecutionId))
+            cache.evictByPattern("pipeline:list:*")
 
             notifyUseCase.onReviewCompleted(
                 ReviewCompleted(
@@ -89,7 +94,8 @@ class ReviewUseCase(
         } catch (e: Exception) {
             log.error("코드리뷰 실패: pipelineExecutionId=$pipelineExecutionId", e)
             reviewRepository.save(review.fail())
-            pipelineRepository.save(execution.fail())
+            pipelineRepository.save(startedExecution.fail())
+            cache.evict(PipelineCacheService.detailKey(pipelineExecutionId))
         }
     }
 }

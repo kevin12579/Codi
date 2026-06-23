@@ -5,11 +5,13 @@ import java.time.LocalDateTime
 data class PipelineExecution(
     val id: Long = 0,
     val repositoryId: Long,
+    val vcsId: String = "github",
     val prNumber: Int,
     val prTitle: String,
     val prUrl: String,
     val prAuthor: String,
     val headSha: String,
+    val headBranch: String? = null,
     val status: PipelineStatus = PipelineStatus.PENDING,
     val startedAt: LocalDateTime? = null,
     val completedAt: LocalDateTime? = null,

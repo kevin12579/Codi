@@ -1,5 +1,6 @@
 package com.codeai.application.settings
 
+import com.codeai.application.connector.SlackWebhookException
 import com.codeai.domain.repository.RepositoryRepository
 import com.codeai.infrastructure.persistence.settings.SettingsStore
 import com.codeai.infrastructure.slack.SlackWebhookClient
@@ -20,7 +21,13 @@ class SettingsUseCase(
     suspend fun getAll(): AllSettingsResponse = AllSettingsResponse(
         github = getGithub(),
         slack = getSlack(),
-        claude = getClaude()
+        claude = getClaude(),
+        connectors = ConnectorsBlock(
+            ai = AiConnectorBlock(
+                active = settingsStore.get("ai.engine") ?: "claude",
+                available = listOf("claude", "openai", "gemini")
+            )
+        )
     )
 
     suspend fun getSlack(): SlackSettingsResponse {
@@ -37,15 +44,16 @@ class SettingsUseCase(
         return SlackSettingsResponse(webhookUrl = webhookUrl, connected = webhookUrl.isNotBlank(), lastTestedAt = lastTestedAt)
     }
 
-    suspend fun sendSlackTest() {
+    suspend fun sendSlackTest(): LocalDateTime {
         val url = settingsStore.get("slack.webhook.url") ?: defaultSlackUrl
         val payload = mapOf<String, Any>(
             "text" to "코디(Code AI) Slack 연동 테스트 메시지입니다. 정상적으로 연결되었습니다."
         )
         val sent = slackWebhookClient.send(payload, url)
-        if (sent) {
-            settingsStore.set("slack.last.tested.at", LocalDateTime.now().toString())
-        }
+        if (!sent) throw SlackWebhookException("Slack 웹훅 전송에 실패했습니다. 웹훅 URL을 확인하세요.")
+        val now = LocalDateTime.now()
+        settingsStore.set("slack.last.tested.at", now.toString())
+        return now
     }
 
     suspend fun getClaude(): ClaudeSettingsResponse {
@@ -64,13 +72,14 @@ class SettingsUseCase(
 
     suspend fun getGithub(): GithubSettingsResponse {
         val repos = repositoryRepository.findAll().map { it.fullName }
-        val secretConfigured = (settingsStore.get("github.webhook.secret") ?: "").isNotBlank()
+        val secret = settingsStore.get("github.webhook.secret") ?: ""
         val lastConnectedAt = settingsStore.get("github.last.connected.at")
             ?.runCatching { LocalDateTime.parse(this) }?.getOrNull()
         return GithubSettingsResponse(
             connectedRepos = repos,
             webhookUrl = webhookCallbackUrl,
-            connected = secretConfigured,
+            webhookSecret = if (secret.isNotBlank()) maskSecret(secret) else null,
+            connected = secret.isNotBlank(),
             lastConnectedAt = lastConnectedAt
         )
     }
@@ -84,10 +93,15 @@ class SettingsUseCase(
         return GithubSettingsResponse(
             connectedRepos = repos,
             webhookUrl = webhookCallbackUrl,
+            webhookSecret = maskSecret(webhookSecret),
             connected = true,
             lastConnectedAt = lastConnectedAt
         )
     }
+
+    private fun maskSecret(secret: String): String =
+        if (secret.length <= 4) "****"
+        else "*".repeat(secret.length - 4) + secret.takeLast(4)
 
     suspend fun recordGithubConnection() {
         settingsStore.set("github.last.connected.at", LocalDateTime.now().toString())

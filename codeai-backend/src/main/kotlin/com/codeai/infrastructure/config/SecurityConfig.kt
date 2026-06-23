@@ -1,7 +1,9 @@
 package com.codeai.infrastructure.config
 
 import com.codeai.infrastructure.security.JwtAuthFilter
+import com.codeai.infrastructure.security.McpApiKeyFilter
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.io.buffer.DefaultDataBufferFactory
@@ -19,7 +21,8 @@ import reactor.core.publisher.Mono
 @EnableWebFluxSecurity
 class SecurityConfig(
     private val jwtAuthFilter: JwtAuthFilter,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    @Value("\${codeai.api.key:}") private val mcpApiKey: String
 ) {
 
     @Bean
@@ -33,7 +36,7 @@ class SecurityConfig(
                         "/api/auth/register",
                         "/api/auth/signup",
                         "/api/auth/login",
-                        "/webhook/github",
+                        "/webhook/**",
                         "/actuator/health",
                         "/actuator/health/**",
                         "/swagger-ui.html",
@@ -42,6 +45,8 @@ class SecurityConfig(
                         "/api-docs/**",
                         "/webjars/**"
                     ).permitAll()
+                    // MCP 엔드포인트: X-Api-Key 헤더로 별도 인증 (McpApiKeyFilter)
+                    .pathMatchers("/sse", "/mcp/message").permitAll()
                     .anyExchange().authenticated()
             }
             .exceptionHandling { ex ->
@@ -55,7 +60,11 @@ class SecurityConfig(
                 }
             }
             .addFilterBefore(jwtAuthFilter, SecurityWebFiltersOrder.AUTHENTICATION)
+            .addFilterBefore(mcpApiKeyFilter(), SecurityWebFiltersOrder.FIRST)
             .build()
+
+    @Bean
+    fun mcpApiKeyFilter(): McpApiKeyFilter = McpApiKeyFilter(mcpApiKey, objectMapper)
 
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder(12)

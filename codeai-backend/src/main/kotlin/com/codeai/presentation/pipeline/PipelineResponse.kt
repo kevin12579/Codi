@@ -23,18 +23,17 @@ data class PipelineSummary(
     val prTitle: String,
     val prAuthor: String,
     val status: String,
+    val vcsId: String,
     val startedAt: LocalDateTime?,
     val completedAt: LocalDateTime?,
     val durationSeconds: Long?
 ) {
     companion object {
-        fun from(e: PipelineExecution) = PipelineSummary(
-            id = e.id,
-            repositoryFullName = e.prUrl
-                .removePrefix("https://github.com/")
-                .substringBefore("/pull/"),
+        fun from(e: PipelineExecution, repoFullName: String) = PipelineSummary(
+            id = e.id, repositoryFullName = repoFullName,
             prNumber = e.prNumber, prTitle = e.prTitle,
             prAuthor = e.prAuthor, status = e.status.name,
+            vcsId = e.vcsId,
             startedAt = e.startedAt, completedAt = e.completedAt,
             durationSeconds = e.durationSeconds
         )
@@ -44,6 +43,7 @@ data class PipelineSummary(
 data class PipelineDetailResponse(
     val id: Long,
     val repositoryFullName: String,
+    val vcsId: String,
     val prNumber: Int,
     val prTitle: String,
     val prUrl: String,
@@ -78,6 +78,7 @@ data class StepSummary(
 }
 
 data class ReviewSummary(
+    val engineId: String,
     val status: String,
     val promptVersion: String,
     val totalIssues: Int,
@@ -89,6 +90,7 @@ data class ReviewSummary(
 ) {
     companion object {
         fun from(r: CodeReview, comments: List<ReviewComment>) = ReviewSummary(
+            engineId = r.engineId,
             status = r.status.name, promptVersion = r.promptVersion,
             totalIssues = r.totalIssues, highCount = r.highCount,
             mediumCount = r.mediumCount, lowCount = r.lowCount,
@@ -114,6 +116,7 @@ data class CommentSummary(
 }
 
 data class TestRunSummary(
+    val runnerId: String,
     val status: String,
     val totalTests: Int,
     val passed: Int,
@@ -122,6 +125,7 @@ data class TestRunSummary(
 ) {
     companion object {
         fun from(t: TestRun) = TestRunSummary(
+            runnerId = t.runnerId,
             status = t.status.name, totalTests = t.totalTests,
             passed = t.passed, failed = t.failed, coveragePct = t.coveragePct
         )
@@ -129,13 +133,13 @@ data class TestRunSummary(
 }
 
 data class NotificationSummary(
-    val channel: String,
+    val channelId: String,
     val status: String,
     val sentAt: LocalDateTime?
 ) {
     companion object {
         fun from(n: NotificationMessage) = NotificationSummary(
-            channel = n.channel.name, status = n.status.name, sentAt = n.sentAt
+            channelId = n.channelId, status = n.status.name, sentAt = n.sentAt
         )
     }
 }
@@ -146,6 +150,7 @@ data class PipelineStatsResponse(
     val failedCount: Long,
     val successRate: Double,
     val avgDurationSeconds: Long,
+    val engineBreakdown: Map<String, Long>,
     val period: String,
     val dailyStats: List<DailyStat>
 )

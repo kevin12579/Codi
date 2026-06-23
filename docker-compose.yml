@@ -15,14 +15,35 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+      # AI 엔진 다중화 (Phase 4) — 키 미설정 시 빈값 허용
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-2.0-flash}
       - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL}
       - GITHUB_TOKEN=${GITHUB_TOKEN}
       - CODEAI_API_KEY=${CODEAI_API_KEY}
       - WEBHOOK_SECRET=${WEBHOOK_SECRET}
       - JWT_SECRET=${JWT_SECRET:-codeai-jwt-secret-key-must-be-at-least-256-bits-long-for-security}
+      # 커넥터 키 AES-256 암호화 (Phase 5)
+      - AES_SECRET_KEY=${AES_SECRET_KEY:-}
+      # Playwright 전용 컨테이너 (Phase 3에서 playwright-server 서비스 추가 예정)
+      - PLAYWRIGHT_SERVER_URL=${PLAYWRIGHT_SERVER_URL:-http://playwright-server:3001}
+      - FRONTEND_URL=${FRONTEND_URL:-http://frontend:80}
     depends_on:
       - postgres
       - redis
+    networks:
+      - codeai-net
+
+  # Playwright 전용 실행 컨테이너 (Node.js) — 백엔드가 HTTP(:3001/run)로 호출 (P3, 종합설계 §7)
+  # NOTE: frontend 서비스는 이 compose 에 아직 없음(프론트팀 산출물). 통합 시 depends_on: frontend 추가.
+  playwright-server:
+    build:
+      context: ./playwright-server
+    ports:
+      - "3001:3001"
+    environment:
+      - BASE_URL=${FRONTEND_URL:-http://frontend:80}
     networks:
       - codeai-net
 
@@ -64,7 +85,8 @@ services:
     image: grafana/grafana:latest
     container_name: codeai-grafana
     ports:
-      - "3001:3000"
+      # P3에서 playwright-server가 host 3001을 사용 → grafana는 3002로 이동(포트 충돌 해소).
+      - "3002:3000"
     networks:
       - codeai-net
 

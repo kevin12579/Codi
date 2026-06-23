@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-07-09/server.schema.json",
+  "name": "io.github.codi-team/codi-mcp-server",
+  "description": "Codi (Code AI) MCP server — exposes PR review, E2E test, deploy, and notification tools over Streamable HTTP. Part of an extensible AI-driven dev-workflow framework (GitHub + Claude/GPT-4o/Gemini + Playwright + Slack + GitHub Actions).",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/codi-team/codi",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://codeai.example.com/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer <JWT> — obtain via POST /api/auth/login",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "tools": [
+      "get_pr_diff",
+      "post_review_comment",
+      "run_e2e_tests",
+      "trigger_deploy",
+      "send_notification",
+      "mask_secrets"
+    ],
+    "transport": "streamable-http",
+    "endpoint": "/mcp"
+  }
+}

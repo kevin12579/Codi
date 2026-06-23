@@ -2,12 +2,12 @@ package com.codeai.application.notification
 
 import com.codeai.domain.event.ReviewCompleted
 import com.codeai.domain.event.TestRunCompleted
-import com.codeai.domain.notification.NotificationChannel
+import com.codeai.domain.notification.NotificationChannelId
 import com.codeai.domain.notification.NotificationMessage
 import com.codeai.domain.notification.NotificationRepository
 import com.codeai.infrastructure.persistence.settings.SettingsStore
 import com.codeai.infrastructure.slack.SlackMessageBuilder
-import com.codeai.infrastructure.slack.SlackWebhookClient
+import com.codeai.plugin.registry.ProviderRegistry
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -15,7 +15,7 @@ import org.springframework.stereotype.Service
 @Service
 class NotifyUseCase(
     private val notificationRepository: NotificationRepository,
-    private val slackWebhookClient: SlackWebhookClient,
+    private val registry: ProviderRegistry,
     private val settingsStore: SettingsStore,
     private val objectMapper: ObjectMapper
 ) {
@@ -42,7 +42,7 @@ class NotifyUseCase(
             notificationRepository.save(
                 NotificationMessage(
                     pipelineExecutionId = pipelineExecutionId,
-                    channel = NotificationChannel.SLACK,
+                    channelId = NotificationChannelId.SLACK,
                     message = objectMapper.writeValueAsString(payload)
                 ).markFailed("Slack Webhook URL 미설정")
             )
@@ -52,12 +52,13 @@ class NotifyUseCase(
         val notification = notificationRepository.save(
             NotificationMessage(
                 pipelineExecutionId = pipelineExecutionId,
-                channel = NotificationChannel.SLACK,
+                channelId = NotificationChannelId.SLACK,
                 message = objectMapper.writeValueAsString(payload)
             )
         )
 
-        val sent = slackWebhookClient.send(payload, slackUrl)
+        // V1: notify.channels 미시드 시 폴백으로 Slack 단일 채널. send 위임은 기존과 동일.
+        val sent = registry.activeChannels().firstOrNull()?.send(payload, slackUrl) ?: false
         notificationRepository.save(
             if (sent) notification.markSent()
             else notification.markFailed("Slack 발송 실패")

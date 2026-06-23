@@ -1,6 +1,7 @@
 package com.codeai.infrastructure.ai
 
 import com.codeai.domain.review.ReviewSeverity
+import com.fasterxml.jackson.core.JsonParser
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.reactor.awaitSingle
 import org.slf4j.LoggerFactory
@@ -19,6 +20,9 @@ class ClaudeApiClient(
     private val objectMapper: ObjectMapper
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
+
+    // Claude 응답 파싱 전용 — \$ 등 비표준 이스케이프 허용 (Kotlin 코드 스니펫 포함 시 발생)
+    private val claudeMapper = ObjectMapper().configure(JsonParser.Feature.ALLOW_BACKSLASH_ESCAPING_ANY_CHARACTER, true)
 
     private val webClient = WebClient.builder()
         .baseUrl("https://api.anthropic.com")
@@ -106,12 +110,11 @@ class ClaudeApiClient(
             val cleanJson = jsonText.trim()
                 .removePrefix("```json").removePrefix("```")
                 .removeSuffix("```").trim()
-                .replace("\\" + "$", "$")  // Claude가 Kotlin 코드에서 \$ 이스케이프 → JSON 비표준, $ 로 치환
             val parsed = try {
-                objectMapper.readValue(cleanJson, Map::class.java)
+                claudeMapper.readValue(cleanJson, Map::class.java)
             } catch (e: com.fasterxml.jackson.core.io.JsonEOFException) {
                 log.warn("Claude 응답 잘림 감지, 복구 시도")
-                objectMapper.readValue(recoverTruncatedJson(cleanJson), Map::class.java)
+                claudeMapper.readValue(recoverTruncatedJson(cleanJson), Map::class.java)
             }
             val issues = parsed["issues"] as? List<Map<String, Any?>> ?: emptyList()
             issues.mapNotNull { issue ->

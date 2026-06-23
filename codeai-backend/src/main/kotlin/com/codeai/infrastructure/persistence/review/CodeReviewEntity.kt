@@ -18,6 +18,9 @@ class CodeReviewEntity(
     @Column(nullable = false)
     var status: ReviewStatus = ReviewStatus.PENDING,
 
+    @Column(name = "engine_id", nullable = false)
+    var engineId: String = "claude",
+
     @Column(name = "prompt_version", nullable = false)
     var promptVersion: String = "v3",
 
@@ -47,7 +50,7 @@ class CodeReviewEntity(
 ) {
     fun toDomain() = CodeReview(
         id = id, pipelineExecutionId = pipelineExecutionId,
-        status = status, promptVersion = promptVersion,
+        status = status, engineId = engineId, promptVersion = promptVersion,
         totalIssues = totalIssues, highCount = highCount,
         mediumCount = mediumCount, lowCount = lowCount,
         tokensUsed = tokensUsed, githubCommentId = githubCommentId,
@@ -57,7 +60,7 @@ class CodeReviewEntity(
     companion object {
         fun from(d: CodeReview) = CodeReviewEntity(
             id = d.id, pipelineExecutionId = d.pipelineExecutionId,
-            status = d.status, promptVersion = d.promptVersion,
+            status = d.status, engineId = d.engineId, promptVersion = d.promptVersion,
             totalIssues = d.totalIssues, highCount = d.highCount,
             mediumCount = d.mediumCount, lowCount = d.lowCount,
             tokensUsed = d.tokensUsed, githubCommentId = d.githubCommentId,

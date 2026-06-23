@@ -1,5 +1,6 @@
 package com.codeai.application.pipeline
 
+import com.codeai.application.connector.PipelineNotFoundException
 import com.codeai.domain.notification.NotificationRepository
 import com.codeai.domain.pipeline.PipelineRepository
 import com.codeai.domain.pipeline.PipelineStepRepository
@@ -19,13 +20,16 @@ class PipelineQueryUseCase(
     private val cache: PipelineCacheService
 ) {
     suspend fun getList(
-        status: String?, from: String?, to: String?, page: Int, size: Int
+        status: String?, from: String?, to: String?, page: Int, size: Int,
+        repositoryId: Long? = null
     ): PipelineListResponse {
-        val key = PipelineCacheService.listKey(status, from, to, page, size)
+        val key = PipelineCacheService.listKey(status, from, to, page, size, repositoryId)
         return cache.getOrLoad(key, PipelineListResponse::class.java) {
-            val pageResult = pipelineRepository.findAll(status, from, to, page, size)
+            val pageResult = pipelineRepository.findAll(status, from, to, page, size, repositoryId)
             PipelineListResponse(
-                content = pageResult.content.map { PipelineSummary.from(it) },
+                content = pageResult.content.map { e ->
+                    PipelineSummary.from(e, repoFullNameFrom(e.prUrl))
+                },
                 totalElements = pageResult.totalElements,
                 totalPages = pageResult.totalPages,
                 currentPage = pageResult.currentPage
@@ -37,7 +41,7 @@ class PipelineQueryUseCase(
         val key = PipelineCacheService.detailKey(id)
         return cache.getOrLoad(key, PipelineDetailResponse::class.java) {
             val execution = pipelineRepository.findById(id)
-                ?: throw NoSuchElementException("파이프라인을 찾을 수 없습니다: id=$id")
+                ?: throw PipelineNotFoundException(id)
 
             val steps = stepRepository.findByPipelineExecutionId(id)
             val review = reviewRepository.findByPipelineExecutionId(id)
@@ -47,9 +51,8 @@ class PipelineQueryUseCase(
 
             PipelineDetailResponse(
                 id = execution.id,
-                repositoryFullName = execution.prUrl
-                    .removePrefix("https://github.com/")
-                    .substringBefore("/pull/"),
+                repositoryFullName = repoFullNameFrom(execution.prUrl),
+                vcsId = execution.vcsId,
                 prNumber = execution.prNumber,
                 prTitle = execution.prTitle, prUrl = execution.prUrl,
                 prAuthor = execution.prAuthor, headSha = execution.headSha,
@@ -62,4 +65,7 @@ class PipelineQueryUseCase(
             )
         }
     }
+
+    private fun repoFullNameFrom(prUrl: String): String =
+        prUrl.removePrefix("https://github.com/").substringBefore("/pull/")
 }

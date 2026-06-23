@@ -1,5 +1,6 @@
 package com.codeai.application.auth
 
+import com.codeai.application.connector.EmailAlreadyExistsException
 import com.codeai.domain.user.User
 import com.codeai.domain.user.UserRepository
 import com.codeai.infrastructure.security.JwtProvider
@@ -14,7 +15,7 @@ class AuthUseCase(
 ) {
     suspend fun register(email: String, password: String, name: String): AuthResult {
         if (userRepository.existsByEmail(email)) {
-            throw IllegalArgumentException("이미 사용 중인 이메일입니다: $email")
+            throw EmailAlreadyExistsException(email)
         }
         val user = userRepository.save(
             User(email = email, password = passwordEncoder.encode(password), name = name)

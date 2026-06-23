@@ -7,9 +7,8 @@ import com.codeai.domain.review.CodeReviewRepository
 import com.codeai.domain.review.ReviewStatus
 import com.codeai.domain.testrun.TestRunRepository
 import com.codeai.domain.testrun.TestRunStatus
-import com.codeai.infrastructure.github.GitHubActionsClient
+import com.codeai.plugin.registry.ProviderRegistry
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 
 @Service
@@ -17,8 +16,7 @@ class DeployUseCase(
     private val reviewRepository: CodeReviewRepository,
     private val testRunRepository: TestRunRepository,
     private val stepRepository: PipelineStepRepository,
-    private val actionsClient: GitHubActionsClient,
-    @Value("\${github.deploy.workflow-id:deploy.yml}") private val workflowId: String
+    private val registry: ProviderRegistry
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
 
@@ -43,9 +41,8 @@ class DeployUseCase(
             return false
         }
 
-        val triggered = actionsClient.triggerDeploy(
+        val triggered = registry.activeDeployer().deploy(
             repoFullName = repoFullName,
-            workflowId = workflowId,
             ref = ref,
             inputs = mapOf("pipeline_id" to pipelineExecutionId.toString())
         )

@@ -52,7 +52,8 @@ class WebhookProcessUseCase(
                 prTitle = pr.title,
                 prUrl = pr.htmlUrl,
                 prAuthor = pr.user.login,
-                headSha = pr.head.sha
+                headSha = pr.head.sha,
+                headBranch = pr.head.ref
             )
         )
 

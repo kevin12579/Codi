@@ -5,6 +5,21 @@ spring:
   application:
     name: codeai-backend
 
+  # Spring AI MCP 서버 (SSE 전송) — V1 신규
+  # spring-ai 1.0.x: /sse (SSE 이벤트 스트림), /mcp/message (클라이언트 → 서버)
+  # MCP Inspector 연결: Transport=SSE, URL=http://localhost:8080/sse
+  ai:
+    mcp:
+      server:
+        enabled: true
+        name: codi-mcp-server
+        version: 1.0.0
+        type: ASYNC            # WebFlux 리액티브 스택
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:codeai}
     username: ${DB_USER:codeai}
@@ -53,10 +68,13 @@ codeai:
   api:
     key: ${CODEAI_API_KEY:codeai-local-key}
   review:
-    prompt-version: ${CLAUDE_PROMPT_VERSION:v3}
+    prompt-version: ${CLAUDE_PROMPT_VERSION:v4}
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  # 커넥터 API 키 AES-256 암호화 시크릿 (P5). 미설정 시 dev 기본키(경고 로그).
+  aes:
+    secret: ${AES_SECRET_KEY:}
 
 claude:
   api:
@@ -64,6 +82,22 @@ claude:
     model: ${CLAUDE_MODEL:claude-haiku-4-5-20251001}
     max-tokens: ${CLAUDE_MAX_TOKENS:2000}
     max-chunks: ${CLAUDE_MAX_CHUNKS:10}
+
+# AI 엔진 다중화 (P4) — 키 미설정 시 빈값 허용(엔진 빈은 생성되나 호출 시 빈 결과).
+# 런타임 전환: system_settings.ai.engine = claude|openai|gemini
+openai:
+  api:
+    key: ${OPENAI_API_KEY:}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
+    max-tokens: ${OPENAI_MAX_TOKENS:2000}
+    max-chunks: ${OPENAI_MAX_CHUNKS:10}
+
+gemini:
+  api:
+    key: ${GEMINI_API_KEY:}
+    model: ${GEMINI_MODEL:gemini-2.0-flash}
+    max-tokens: ${GEMINI_MAX_TOKENS:2000}
+    max-chunks: ${GEMINI_MAX_CHUNKS:10}
 
 slack:
   webhook:
@@ -75,8 +109,15 @@ github:
     workflow-id: ${GITHUB_DEPLOY_WORKFLOW_ID:deploy.yml}
 
 playwright:
+  # 전용 컨테이너 HTTP 호출 방식 (P3). 실제 실행은 playwright-server 기동 후 enabled=true 로 활성화.
   enabled: ${PLAYWRIGHT_ENABLED:false}
-  working-dir: ${PLAYWRIGHT_WORKING_DIR:./codeai-frontend}
-  timeout-ms: ${PLAYWRIGHT_TIMEOUT_MS:120000}
-  use-docker: ${PLAYWRIGHT_USE_DOCKER:false}
-  docker-image: ${PLAYWRIGHT_DOCKER_IMAGE:mcr.microsoft.com/playwright:v1.44.0-jammy}
+  server:
+    url: ${PLAYWRIGHT_SERVER_URL:http://playwright-server:3001}
+  timeout-ms: ${PLAYWRIGHT_TIMEOUT_MS:300000}   # 5분 (PLAYWRIGHT_TIMEOUT)
+
+frontend:
+  url: ${FRONTEND_URL:http://frontend:80}
+
+logging:
+  level:
+    org.springframework.web.reactive.resource: WARN
