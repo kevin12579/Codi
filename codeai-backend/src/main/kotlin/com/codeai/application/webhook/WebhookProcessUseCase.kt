@@ -1,6 +1,8 @@
 package com.codeai.application.webhook
 
 import com.codeai.application.settings.SettingsUseCase
+import com.codeai.domain.admin.UserActivityLog
+import com.codeai.domain.admin.UserActivityLogRepository
 import com.codeai.domain.pipeline.PipelineExecution
 import com.codeai.domain.pipeline.PipelineRepository
 import com.codeai.domain.repository.Repository
@@ -20,6 +22,7 @@ class WebhookProcessUseCase(
     private val streamProducer: RedisStreamProducer,
     private val objectMapper: ObjectMapper,
     private val settingsUseCase: SettingsUseCase,
+    private val activityLogRepository: UserActivityLogRepository,
     @Value("\${codeai.webhook.secret}") private val webhookSecret: String
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
@@ -68,6 +71,17 @@ class WebhookProcessUseCase(
         )
         streamProducer.publish(eventData).awaitSingle()
         settingsUseCase.recordGithubConnection()
+
+        runCatching {
+            activityLogRepository.save(
+                UserActivityLog(
+                    userId = null,
+                    email = "${pr.user.login}@github",
+                    action = "파이프라인 실행",
+                    result = "성공"
+                )
+            )
+        }
 
         log.info("Pipeline 생성: id=${execution.id}, repo=${repo.fullName}, PR#${pr.number}")
         return execution.id

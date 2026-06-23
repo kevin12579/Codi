@@ -1,5 +1,7 @@
 package com.codeai.application.connector
 
+import com.codeai.domain.admin.UserActivityLog
+import com.codeai.domain.admin.UserActivityLogRepository
 import com.codeai.infrastructure.connector.ConnectorConfigService
 import com.codeai.infrastructure.persistence.settings.SettingsStore
 import com.codeai.infrastructure.slack.SlackWebhookClient
@@ -29,6 +31,7 @@ class ConnectorUseCase(
     private val connectorConfig: ConnectorConfigService,
     private val registry: ProviderRegistry,
     private val slackWebhookClient: SlackWebhookClient,
+    private val activityLogRepository: UserActivityLogRepository,
     @Value("\${claude.api.key:}") private val claudeKey: String,
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
@@ -54,6 +57,7 @@ class ConnectorUseCase(
         category: String,
         activeProviders: List<String>,
         config: Map<String, Map<String, String>>,
+        callerEmail: String = "system",
     ): ConnectorUpdateResultDto {
         val known = knownIds(category)
         val active = activeProviders.firstOrNull()
@@ -76,6 +80,11 @@ class ConnectorUseCase(
             "vcs" -> { /* V1: GitHub 고정 */ }
         }
         log.info("커넥터 변경: category=$category, active=$active")
+        runCatching {
+            activityLogRepository.save(
+                UserActivityLog(userId = null, email = callerEmail, action = "설정 변경", result = "성공")
+            )
+        }
         return ConnectorUpdateResultDto(category, active)
     }
 
