@@ -25,4 +25,11 @@ interface PipelineExecutionJpaRepository : JpaRepository<PipelineExecutionEntity
         prNumber: Int,
         statuses: List<PipelineStatus>
     ): PipelineExecutionEntity?
+
+    fun countByStatusAndCreatedAtAfter(status: PipelineStatus, since: LocalDateTime): Long
+
+    fun findByCreatedAtBetweenOrderByCreatedAtAsc(
+        from: LocalDateTime,
+        to: LocalDateTime
+    ): List<PipelineExecutionEntity>
 }
