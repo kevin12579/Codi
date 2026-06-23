@@ -1,7 +1,6 @@
-    import { useState, useEffect } from 'react'
+    import { useState, useEffect  } from 'react'
     import { Search } from 'lucide-react'
 
-    // ─── 유틸 함수 ────────────────────────────────────────────────
     const formatDuration = (seconds) => {
     if (!seconds) return '-'
     const m = Math.floor(seconds / 60)
@@ -11,18 +10,27 @@
 
     const formatDate = (isoString) => {
     if (!isoString) return '-'
-    return new Date(isoString).toLocaleString('ko-KR')
+    
+    // 1. 서버에서 받은 시간을 Date 객체로 생성
+    const date = new Date(isoString);
+    
+    // 2. 9시간(9 * 60 * 60 * 1000 = 32,400,000ms)을 강제로 더함
+    const kstDate = new Date(date.getTime() + 32400000);
+    
+    // 3. 한국 시간으로 포맷팅
+    return kstDate.toLocaleString('ko-KR', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
     }
 
-    export default function PipelineList({ onSelectPipeline }) {
-    const [pipelines, setPipelines] = useState([])
+    export default function PipelineList({ pipelines = [], onSelectPipeline }) {
     const [searchTerm, setSearchTerm] = useState('')
-    const [loading, setLoading] = useState(false)
-    const [error, setError] = useState(false)
 
-    const savedToken = localStorage.getItem("authToken")
-
-    // 상태 배지 스타일 함수
     const statusBadgeClass = (status) => {
         const s = status?.toUpperCase()
         if (s === 'SUCCESS') return 'bg-emerald-50 text-emerald-600'
@@ -31,62 +39,52 @@
         return 'bg-slate-50 text-slate-600'
     }
 
-    // ─── API 연동 로직: 최초 1회 전체 목록 로드 ──────────────
-    useEffect(() => {
-        const fetchPipelines = async () => {
-        setLoading(true)
-        try {
-            const response = await fetch('/api/pipelines', {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${savedToken}`
-            }
-            })
-            const result = await response.json()
-
-            if (result.success) {
-            setPipelines(result.data.content)
-            }
-        } catch (err) {
-            console.error("파이프라인 데이터 로드 실패:", err)
-            setError(true)
-        } finally {
-            setLoading(false)
-        }
-        }
-
-        fetchPipelines()
-    }, [])
-
-    // ─── 클라이언트 사이드 검색 필터링 ──────────────
     const filteredPipelines = pipelines.filter((p) => {
-    if (!searchTerm) return true
-    const term = searchTerm.toLowerCase()
-    return (
+        if (!searchTerm) return true
+        const term = searchTerm.toLowerCase()
+        return (
         String(p.id).includes(term) ||
         (p.repositoryFullName ?? '').toLowerCase().includes(term) ||
         (p.prAuthor ?? '').toLowerCase().includes(term) ||
         (p.prTitle ?? '').toLowerCase().includes(term)
-    )
+        )
     })
+
+    //----------------페이지 슬라이싱 --------------------------------------
+    const ITEMS_PER_PAGE = 10
+    const [currentPage, setCurrentPage] = useState(1)
+
+    // 검색어 바뀌면 1페이지로 리셋
+    useEffect(() => {
+    setCurrentPage(1)
+    }, [searchTerm])
+
+    const totalPages = Math.ceil(filteredPipelines.length / ITEMS_PER_PAGE)
+    const pagedPipelines = filteredPipelines.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+    )
 
     return (
         <div className="space-y-6">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between">
-            <h2 className="text-2xl font-black text-slate-900">전체 파이프라인</h2>
-            <div className="relative">
+        <div className="grid grid-cols-[1fr,auto] items-center gap-6 mb-6">
+            <h1 className="text-3xl font-black text-[#0f172a] tracking-tight flex items-center">
+            <span className="text-2xl mr-2">✦</span>
+            <span className="truncate">전체 파이프라인</span>
+            </h1>
+            <div className="relative shrink-0">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
             <input
                 type="text"
                 placeholder="ID, 저장소, 작성자, PR 제목 검색..."
-                className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#0066ff] w-64"
+                className="pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-[#0066ff] w-72 transition-all"
                 onChange={(e) => setSearchTerm(e.target.value)}
             />
             </div>
         </div>
 
-        {/* 테이블 */}
+        <hr className="border-slate-200 mb-6" />
+
         <div className="bg-white border border-[#e2e8f0] rounded-2xl shadow-sm overflow-hidden">
             <table className="w-full text-left">
             <thead className="bg-slate-50 border-b border-[#e2e8f0]">
@@ -101,12 +99,20 @@
                 </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                <tr>
-                    <td colSpan={7} className="px-6 py-16 text-center text-sm text-slate-400">데이터를 불러오는 중...</td>
-                </tr>
+                {pipelines.length === 0 ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i} className="animate-pulse">
+                    <td className="px-6 py-4"><div className="h-3 bg-slate-100 rounded-lg w-8" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-slate-100 rounded-lg w-36" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-slate-100 rounded-lg w-48" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-slate-100 rounded-lg w-20" /></td>
+                    <td className="px-6 py-4"><div className="h-5 bg-slate-100 rounded-full w-16" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-slate-100 rounded-lg w-16" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-slate-100 rounded-lg w-28" /></td>
+                    </tr>
+                ))
                 ) : filteredPipelines.length > 0 ? (
-                filteredPipelines.map((p) => (
+                pagedPipelines.map((p) => (
                     <tr
                     key={p.id}
                     onClick={() => onSelectPipeline(p.id)}
@@ -140,12 +146,46 @@
                 ) : (
                 <tr>
                     <td colSpan={7} className="px-6 py-16 text-center text-sm text-slate-400">
-                    {error ? '데이터를 불러오지 못했습니다.' : '검색 결과가 없습니다.'}
+                    검색 결과가 없습니다.
                     </td>
                 </tr>
                 )}
             </tbody>
             </table>
+
+            {totalPages > 1 && (
+                <div className="flex items-center justify-center gap-1 pt-4">
+                    <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-500 hover:border-[#0066ff] hover:text-[#0066ff] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                    이전
+                    </button>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                        key={page}
+                        onClick={() => setCurrentPage(page)}
+                        className={`px-3 py-1.5 text-xs font-bold rounded-lg border transition-all ${
+                        currentPage === page
+                            ? 'bg-[#0066ff] text-white border-[#0066ff]'
+                            : 'border-slate-200 text-slate-500 hover:border-[#0066ff] hover:text-[#0066ff]'
+                        }`}
+                    >
+                        {page}
+                    </button>
+                    ))}
+
+                    <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg border border-slate-200 text-slate-500 hover:border-[#0066ff] hover:text-[#0066ff] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                    >
+                    다음
+                    </button>
+                </div>
+                )}
         </div>
         </div>
     )

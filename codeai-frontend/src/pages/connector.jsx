@@ -1,12 +1,22 @@
 import { useState, useEffect } from 'react'
 import { Check, Eye, EyeOff, Send } from 'lucide-react'
+import { isApiEnabled } from '../../api/client'
 
-const formatDate = (isoString) => {
-  if (!isoString) return '-'
-  return new Date(isoString).toLocaleString('ko-KR')
-}
+
+  const formatDate = (isoString) => {
+    if (!isoString) return '-'
+    return new Date(isoString).toLocaleString('ko-KR')
+  }
+
 
 export default function Settings() {
+  const apiEnabled = isApiEnabled()
+
+  // ─── Connectors ───────────────────────────────────────────
+  const [connectors, setConnectors] = useState([])        // 엔진 목록
+  const [activeEngine, setActiveEngine] = useState('')    // 현재 활성 엔진
+  const [engineTestResult, setEngineTestResult] = useState(null)  // 테스트 결과
+  const [engineTestLoading, setEngineTestLoading] = useState(false)
 
   // ─── GitHub ───────────────────────────────────────────────
   const [githubConnected, setGithubConnected] = useState(true)
@@ -29,8 +39,19 @@ export default function Settings() {
   const [maxTokensPerReview, setMaxTokensPerReview] = useState(3000)
   const [claudeSaveMsg, setClaudeSaveMsg] = useState('')
 
+  const applyLocalConnectorFallback = () => {
+    setConnectors([
+      { id: 'claude', name: 'Claude', configured: true },
+      { id: 'openai', name: 'OpenAI', configured: true },
+      { id: 'gemini', name: 'Gemini', configured: false },
+    ])
+    setActiveEngine('claude')
+  }
+
   // ─── GET /api/settings─────────────────────────────────────
   useEffect(() => {
+  if (!apiEnabled) return
+
   fetch('/api/settings')
     .then(res => res.json())
     .then(json => {
@@ -50,10 +71,41 @@ export default function Settings() {
       setMaxTokensPerReview(claude.maxTokensPerReview)
     })
     .catch(err => console.error('settings fetch 실패:', err))
-}, [])
+  }, [apiEnabled])
+
+
+  // ─── GET 호출 ─────────────────────────────────────
+    useEffect(() => {
+      if (!apiEnabled) {
+        applyLocalConnectorFallback()
+        return
+      }
+
+      const savedToken = localStorage.getItem("authToken")
+      fetch('/api/connectors/ai', {
+        headers: { 'Authorization': `Bearer ${savedToken}` }
+      })
+        .then(res => res.json())
+        .then(json => {
+          if (!json.success) {
+            applyLocalConnectorFallback()
+            return
+          }
+          setConnectors(json.data.available)   // [{id, name, configured}, ...]
+          setActiveEngine(json.data.active)    // "claude"
+        })
+        .catch(() => applyLocalConnectorFallback())
+    }, [apiEnabled])
+
 
   // ─── PUT /api/settings/github ─────────────────────────────
   const saveGithub = async () => {
+    if (!apiEnabled) {
+      setGithubSaveMsg('저장 완료')
+      setTimeout(() => setGithubSaveMsg(''), 2000)
+      return
+    }
+
     try {
       const res = await fetch('/api/settings/github', {
         method: 'PUT',
@@ -71,6 +123,13 @@ export default function Settings() {
 
   // ─── PUT /api/settings/slack ──────────────────────────────
   const saveSlack = async () => {
+    if (!apiEnabled) {
+      setSlackConnected(Boolean(slackWebhookUrl))
+      setSlackSaveMsg('저장 완료')
+      setTimeout(() => setSlackSaveMsg(''), 2000)
+      return
+    }
+
     try {
       const res = await fetch('/api/settings/slack', {
         method: 'PUT',
@@ -89,6 +148,13 @@ export default function Settings() {
 
   // ─── POST /api/settings/slack/test ───────────────────────
   const testSlack = async () => {
+    if (!apiEnabled) {
+      setSlackTestMsg('테스트 메시지 발송 완료')
+      setSlackLastTestedAt(new Date().toISOString())
+      setTimeout(() => setSlackTestMsg(''), 3000)
+      return
+    }
+
     setSlackTestLoading(true)
     try {
       const res = await fetch('/api/settings/slack/test', { method: 'POST' })
@@ -105,6 +171,12 @@ export default function Settings() {
 
   // ─── PUT /api/settings/claude ─────────────────────────────
   const saveClaude = async () => {
+    if (!apiEnabled) {
+      setClaudeSaveMsg('저장 완료')
+      setTimeout(() => setClaudeSaveMsg(''), 2000)
+      return
+    }
+
     try {
       const res = await fetch('/api/settings/claude', {
         method: 'PUT',
@@ -120,14 +192,146 @@ export default function Settings() {
     }
   }
 
-  return (
-    <div className="space-y-8">
-      <div className="space-y-1">
-        <h1 className="text-3xl font-black text-[#0f172a] tracking-tight">시스템 설정</h1>
-        <p className="text-sm text-slate-500">CI/CD 플랫폼 연동 및 AI 오딧 파라미터 관리</p>
-      </div>
+  // ─── PUT /api/connectors/ai ───────────────────────────────
+  const switchEngine = async (engineId) => {
+    if (!apiEnabled) {
+      setActiveEngine(engineId)
+      return
+    }
 
-      <hr />
+    const savedToken = localStorage.getItem("authToken")
+    try {
+      const res = await fetch('/api/connectors/ai', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${savedToken}`
+        },
+        body: JSON.stringify({
+          activeProviders: [engineId],
+          config: {}   // API Key는 일단 빈 값 — 나중에 입력 필드 추가하면 됨
+        }),
+      })
+      const result = await res.json()
+      if (result.success) setActiveEngine(result.data.active)
+    } catch (err) {
+      console.error('엔진 교체 실패:', err)
+    }
+  }
+
+  // ─── POST /api/connectors/ai/test ────────────────────────
+  const testEngine = async () => {
+    if (!apiEnabled) {
+      setEngineTestResult({ engine: activeEngine || 'claude', latencyMs: Math.floor(Math.random() * 90) + 40 })
+      return
+    }
+
+    const savedToken = localStorage.getItem("authToken");
+    setEngineTestLoading(true);
+    setEngineTestResult(null);
+    
+    try {
+      const res = await fetch('/api/connectors/ai/test', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${savedToken}` }
+      });
+      
+      const result = await res.json();
+
+      // 💡 여기에 추가한 에러 처리 로직을 배치하세요
+      if (res.status === 502) {
+        setEngineTestResult({ error: '연결 실패: API Key를 확인하거나 서버 상태를 점검해주세요.' });
+      } else if (!result.success) {
+        setEngineTestResult({ error: result.error?.message || '테스트 실패' });
+      } else {
+        setEngineTestResult(result.data);
+      }
+
+    } catch (err) {
+      console.error('테스트 중 오류 발생:', err);
+      setEngineTestResult({ error: '테스트 요청 중 네트워크 오류가 발생했습니다.' });
+    } finally {
+      setEngineTestLoading(false);
+    }
+  };
+
+  return (
+      <div className="space-y-6">
+        {/* [해결] grid를 사용하여 제목과 상태를 좌우로 완벽하게 분리 */}
+        <div className="grid grid-cols-2 items-end mb-2">
+            {/* 왼쪽: 제목 영역 */}
+            <div className="space-y-1">
+            <div className="flex items-center gap-2">
+                <span className="text-xl">✦</span>
+                <h1 className="text-3xl font-black text-[#0f172a] tracking-tight">시스템 설정</h1>
+            </div>
+            </div>
+
+            {/* 오른쪽: 상태 뱃지 (밀림 방지) */}
+            <div className="flex justify-end">
+            <div className="px-3 py-1 bg-[#e6f0ff] border border-[#bfdbfe] rounded-lg text-xs font-bold text-[#0066ff] flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#0066ff] animate-pulse" />
+                Ready to Analyze
+            </div>
+            </div>
+        </div>
+
+        <hr className="border-slate-200" />
+
+        {/* AI 엔진 선택 */}
+        <div>
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 block">✦ AI 엔진 선택</label>
+          <div className="flex gap-2 flex-wrap">
+            {connectors.map((engine) => {
+              const isActive = engine.id === activeEngine
+              return (
+                <button
+                  key={engine.id}
+                  onClick={() => switchEngine(engine.id)}  // ← 클릭 시 엔진 교체
+                  disabled={!engine.configured}            // ← configured: false면 비활성
+                  className={`flex items-center gap-2 px-3 py-2 rounded-xl border transition-all
+                    ${isActive
+                      ? 'bg-blue-50 border-[#0066ff] cursor-pointer'
+                      : engine.configured
+                        ? 'bg-slate-50 border-slate-200 hover:border-[#0066ff] cursor-pointer'
+                        : 'bg-slate-50 border-slate-200 opacity-50 cursor-not-allowed'
+                    }`}
+                >
+                  <span className={`text-xs font-black ${isActive ? 'text-[#0066ff]' : 'text-slate-400'}`}>
+                    {engine.name}
+                  </span>
+                  {isActive
+                    ? <span className="text-[10px] bg-[#0066ff] text-white px-1.5 py-0.5 rounded font-bold">Active</span>
+                    : !engine.configured
+                      ? <span className="text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded font-bold">미설정</span>
+                      : null
+                  }
+                </button>
+              )
+            })}
+          </div>
+
+          {/* 테스트 버튼 + 결과 */}
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              onClick={testEngine}
+              disabled={engineTestLoading}
+              className="flex items-center gap-1.5 px-4 py-2 border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-xs font-bold cursor-pointer transition-all disabled:opacity-50"
+            >
+              {engineTestLoading ? '테스트 중...' : '연결 테스트'}
+            </button>
+
+            {/* 테스트 결과 표시 */}
+            {engineTestResult && (
+              engineTestResult.error
+                ? <span className="text-xs font-semibold text-red-500">{engineTestResult.error}</span>
+                : <span className="text-xs font-semibold text-emerald-600">
+                    ✓ {engineTestResult.engine} · {engineTestResult.latencyMs}ms
+                  </span>
+            )}
+          </div>
+        </div>
+
 
       <div className="space-y-6">
 
@@ -281,6 +485,7 @@ export default function Settings() {
             <div className="flex items-center space-x-2">
               <span className="text-xs font-bold text-slate-400 font-mono tracking-wider">SET-003</span>
               <h3 className="text-base font-bold text-slate-900">Claude API 설정</h3>
+
             </div>
             <p className="text-xs text-slate-400">코드 오딧을 위한 Claude 엔진 파라미터 설정</p>
           </div>
@@ -323,6 +528,51 @@ export default function Settings() {
             </button>
           </div>
         </div>
+
+        
+          {/* SET-004 알림 채널 확장 */}
+          <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-4">
+            <div className="space-y-0.5">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-bold text-slate-400 font-mono tracking-wider">SET-004</span>
+                <h3 className="text-base font-bold text-slate-900">알림 채널 확장</h3>
+              </div>
+              <p className="text-xs text-slate-400">MCP 기반 멀티 채널 알림 연동 설정</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Slack - 활성 */}
+              <div className="flex items-center justify-between p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-black text-slate-800">Slack</p>
+                  <p className="text-[10px] text-slate-400">기본 알림 채널</p>
+                </div>
+                <span className="text-[10px] font-bold text-emerald-600 bg-white border border-emerald-200 px-2 py-0.5 rounded-lg">✓ 활성</span>
+              </div>
+
+              {/* Discord - Coming Soon */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl opacity-60">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-black text-slate-500">Discord</p>
+                  <p className="text-[10px] text-slate-400">커뮤니티 알림</p>
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-lg">Coming Soon</span>
+              </div>
+
+              {/* Teams - Coming Soon */}
+              <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl opacity-60">
+                <div className="space-y-0.5">
+                  <p className="text-sm font-black text-slate-500">MS Teams</p>
+                  <p className="text-[10px] text-slate-400">엔터프라이즈 알림</p>
+                </div>
+                <span className="text-[10px] font-bold text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-lg">Coming Soon</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-400 pt-1">
+              💡 MCP 서버 확장으로 추가 채널을 자유롭게 연동할 수 있습니다.
+            </p>
+          </div>
 
       </div>
     </div>

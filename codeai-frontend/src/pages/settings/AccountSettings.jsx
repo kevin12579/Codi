@@ -12,19 +12,49 @@ export default function AccountSettings({ onLogout }) {
     const [logoutLoading, setLogoutLoading] = useState(false)
     const [logoutMsg, setLogoutMsg] = useState('')
 
-    // 비밀번호 상태 관리용 추가
+    // 사용자 이름 상태 관리용 추가
+    const [userName, setUserName] = useState('')
+    const [profileMsg, setProfileMsg] = useState({ text: '', isError: false })
+
+    // 비밀번호 상태 관리용
     const [passwords, setPasswords] = useState({ current: '', next: '', confirm: '' })
     const [pwdMsg, setPwdMsg] = useState({ text: '', isError: false })
 
     useEffect(() => {
         try {
             const stored = JSON.parse(localStorage.getItem('currentUser'))
-            setCurrentUser(stored)
+            if (stored) {
+                setCurrentUser(stored)
+                setUserName(stored.name || '') // 로컬스토리지에 name이 있다면 초기화
+            }
         } catch {
             setCurrentUser(null)
         }
     }, [])
 
+    // 프로필(이름) 변경 핸들러
+    const handleUpdateProfile = (e) => {
+        e.preventDefault();
+        if (!userName.trim()) {
+            setProfileMsg({ text: '이름을 입력해주세요.', isError: true });
+            return;
+        }
+
+        // TODO: 백엔드 API 연동 시 fetch나 axios로 교체
+        console.log('이름 변경 요청 데이터:', userName);
+        
+        // 로컬스토리지 및 상태 업데이트 (가짜 업데이트 로직)
+        const updatedUser = { ...currentUser, name: userName };
+        setCurrentUser(updatedUser);
+        localStorage.setItem('currentUser', JSON.stringify(updatedUser));
+
+        setProfileMsg({ text: '이름이 성공적으로 변경되었습니다.', isError: false });
+        
+        // 3초 후 성공 메시지 초기화
+        setTimeout(() => setProfileMsg({ text: '', isError: false }), 3000);
+    };
+
+    // 로그아웃 핸들러
     const handleLogout = async () => {
         setLogoutLoading(true)
         setLogoutMsg('')
@@ -57,7 +87,7 @@ export default function AccountSettings({ onLogout }) {
             return;
         }
         if (passwords.next !== passwords.confirm) {
-            setPwdMsg({ text: '새 비밀번호가 일체하지 않습니다.', isError: true });
+            setPwdMsg({ text: '새 비밀번호가 일치하지 않습니다.', isError: true });
             return;
         }
         
@@ -81,32 +111,54 @@ export default function AccountSettings({ onLogout }) {
         // TODO: 백엔드 탈퇴 API 연동 시 이곳에서 처리
         alert("회원 탈퇴 처리가 완료되었습니다. 그동안 이용해 주셔서 감사합니다.");
         
-        // 세션 날리고 로그아웃 처리
         localStorage.clear();
         onLogout?.();
     };
 
     return (
-        <div className="space-y-8">
-            {/* 헤더 */}
-            <div className="space-y-1">
-                <h1 className="text-3xl font-black text-[#0f172a] tracking-tight">계정 설정</h1>
-                <p className="text-sm text-slate-500">로그인 계정 정보 및 보안 세션 관리</p>
+        <div className="space-y-6">
+            {/* Header */}
+            <div className="grid grid-cols-2 items-end mb-2">
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xl">✦</span>
+                        <h1 className="text-3xl font-black text-[#0f172a] tracking-tight">계정 설정</h1>
+                    </div>
+                </div>
+                <div className="flex justify-end">
+                    <div className="px-3 py-1 bg-[#e6f0ff] border border-[#bfdbfe] rounded-lg text-xs font-bold text-[#0066ff] flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#0066ff] animate-pulse" />
+                        Ready to Analyze
+                    </div>
+                </div>
             </div>
 
-            <hr />
+            <hr className="border-slate-200" />
 
-            {/* 카드 1: 기본 계정 정보 */}
-            <div className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-4">
+            {/* 카드 1: 기본 계정 정보 및 프로필 수정 */}
+            <form onSubmit={handleUpdateProfile} className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-4">
                 <div className="space-y-0.5">
                     <div className="flex items-center space-x-2">
                         <span className="text-xs font-bold text-slate-400 font-mono tracking-wider">ACC-001</span>
                         <h3 className="text-base font-bold text-slate-900">계정 정보</h3>
                     </div>
-                    <p className="text-xs text-slate-400">현재 로그인된 계정 세션 정보</p>
+                    <p className="text-xs text-slate-400">기본 프로필 정보 및 세션 관리</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 사용자 이름 (수정 가능) */}
+                    <div>
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">사용자 이름</label>
+                        <input
+                            type="text"
+                            value={userName}
+                            onChange={(e) => setUserName(e.target.value)}
+                            placeholder="이름을 입력하세요"
+                            className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-900 font-mono focus:outline-none focus:border-[#0066ff] focus:ring-1 focus:ring-[#0066ff] transition-all"
+                        />
+                    </div>
+
+                    {/* 이메일 (읽기 전용) */}
                     <div>
                         <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">이메일</label>
                         <input
@@ -116,8 +168,10 @@ export default function AccountSettings({ onLogout }) {
                             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-500 font-mono focus:outline-none cursor-default"
                         />
                     </div>
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">로그인 시각</label>
+
+                    {/* 로그인 시각 (읽기 전용) */}
+                    <div className="md:col-span-2">
+                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">최근 로그인 시각</label>
                         <input
                             type="text"
                             value={formatDate(currentUser?.loginTime)}
@@ -127,21 +181,35 @@ export default function AccountSettings({ onLogout }) {
                     </div>
                 </div>
 
-                <div className="flex items-center justify-end space-x-3 pt-2">
-                    {logoutMsg && (
-                        <span className="text-xs font-semibold text-red-500">{logoutMsg}</span>
-                    )}
-                    <button
-                        onClick={handleLogout}
-                        disabled={logoutLoading}
-                        className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-bold cursor-pointer transition-all disabled:opacity-50"
-                    >
-                        {logoutLoading ? '로그아웃 중...' : '로그아웃'}
-                    </button>
+                <div className="flex items-center justify-between pt-2">
+                    <span className={`text-xs font-semibold ${profileMsg.isError ? 'text-red-500' : 'text-emerald-500'}`}>
+                        {profileMsg.text}
+                    </span>
+                    
+                    <div className="flex items-center gap-3">
+                        {logoutMsg && (
+                            <span className="text-xs font-semibold text-red-500">{logoutMsg}</span>
+                        )}
+                        <button
+                            type="button" /* form 제출 방지용 */
+                            onClick={handleLogout}
+                            disabled={logoutLoading}
+                            className="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl text-xs font-bold cursor-pointer transition-all disabled:opacity-50"
+                        >
+                            {logoutLoading ? '로그아웃 중...' : '로그아웃'}
+                        </button>
+                        
+                        <button
+                            type="submit"
+                            className="px-4 py-2 bg-[#0066ff] hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-all shadow-sm"
+                        >
+                            이름 저장
+                        </button>
+                    </div>
                 </div>
-            </div>
+            </form>
 
-            {/* 카드 2: 비밀번호 변경 (추가됨) */}
+            {/* 카드 2: 비밀번호 변경 */}
             <form onSubmit={handleChangePassword} className="bg-white border border-[#e2e8f0] rounded-2xl p-6 shadow-sm space-y-4">
                 <div className="space-y-0.5">
                     <div className="flex items-center space-x-2">
@@ -199,7 +267,7 @@ export default function AccountSettings({ onLogout }) {
                 </div>
             </form>
 
-            {/* 카드 3: Danger Zone (회원 탈퇴 - 추가됨) */}
+            {/* 카드 3: Danger Zone */}
             <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-6 shadow-sm space-y-4">
                 <div className="space-y-0.5">
                     <div className="flex items-center space-x-2">

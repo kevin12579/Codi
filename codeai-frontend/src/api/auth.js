@@ -1,7 +1,10 @@
 import axios from "axios";
 
+const configuredApiUrl = (import.meta.env.VITE_API_URL || "").trim();
+const authBaseUrl = configuredApiUrl ? `${configuredApiUrl}/auth` : "/api/auth";
+
 const authClient = axios.create({
-    baseURL: "/api/auth",
+    baseURL: authBaseUrl,
     timeout: 10000,
     });
 

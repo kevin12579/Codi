@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'  // ← useEffect 추가
 import { ArrowLeft, GitFork, User, Calendar, Clock, CheckCircle2, XCircle, Bell, Copy, Check, Terminal, AlertTriangle, ShieldCheck, Activity } from 'lucide-react'
+
 
 // ─── 유틸 함수 ────────────────────────────────────────────────
 const formatDuration = (seconds) => {
@@ -8,17 +9,52 @@ const formatDuration = (seconds) => {
   const s = seconds % 60
   return `${m}분 ${s}초`
 }
-
+  
 const formatDate = (isoString) => {
-  if (!isoString) return '-'
-  return new Date(isoString).toLocaleString('ko-KR')
-}
+  if (!isoString) return '-';
+  
+  // 서버 시간(UTC)을 Date 객체로 생성
+  const date = new Date(isoString);
+  
+  // 9시간(32,400,000ms)을 강제로 더해서 한국 시간으로 변환
+  const kstDate = new Date(date.getTime() + 32400000);
+  
+  return kstDate.toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+};
 
 export default function PipelineDetail({ pipeline, allPipelines, onSelectPipeline, onBack }) {
   const [activeTab, setActiveTab] = useState('review')
   const [copiedId, setCopiedId] = useState(null)
+  const [detail, setDetail] = useState(null)
 
-  console.log('pipeline 데이터:', pipeline)
+  // 2️⃣ useEffect fetchDetail 수정 - result.data를 state에 저장
+  useEffect(() => {
+    const fetchDetail = async () => {
+      try {
+        const savedToken = localStorage.getItem("authToken")
+        const response = await fetch(`/api/pipelines/${pipeline.id}`, {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${savedToken}`
+          }
+        })
+        const result = await response.json()
+        setDetail(result.data)  // ← 이거 추가
+      } catch (err) {
+        console.error("상세 조회 실패:", err)
+      }
+    }
+    fetchDetail()
+  }, [pipeline.id])
+    // ↑↑↑ 여기까지 추가 ↑↑↑
+
 
   const copyToClipboard = (text, id) => {
     navigator.clipboard.writeText(text)
@@ -147,38 +183,38 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
         {/* 1️⃣ AI Code Review 탭 */}
         {activeTab === 'review' && (
           <div className="space-y-5">
-            {pipeline.codeReviews && pipeline.codeReviews.length > 0 ? (
-              pipeline.codeReviews.map((review, idx) => (
-                <div key={review.id || idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 transition-all hover:border-slate-300">
+            {detail?.review?.comments && detail.review.comments.length > 0 ? (
+              detail.review.comments.map((comment, idx) => (
+                <div key={idx} className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm space-y-4 transition-all hover:border-slate-300">
                   
                   <div className="flex items-center justify-between flex-wrap gap-2 pb-1.5 border-b border-slate-50">
                     <div className="flex items-center gap-2">
                       <span className="w-1.5 h-1.5 rounded-full bg-[#0066ff]" />
-                      <h4 className="text-sm font-black text-slate-800 font-mono tracking-tight break-all">{review.filePath}</h4>
+                      <h4 className="text-sm font-black text-slate-800 font-mono tracking-tight break-all">{comment.filePath}</h4>
                     </div>
-                    <span className={severityBadgeClass(review.severity)}>
-                      {review.severity || 'LOW'}
+                    <span className={severityBadgeClass(comment.severity)}>
+                      {comment.severity || 'LOW'}
                     </span>
                   </div>
 
                   <div className="bg-slate-50 px-4 py-3.5 rounded-xl text-xs font-semibold text-slate-700 leading-relaxed border-l-4 border-[#0066ff]">
                     <p className="font-black text-slate-900 mb-1 flex items-center gap-1 text-[12px]">
-                      💡 Claude API 피드백
+                      {detail?.review?.engineId?.toUpperCase() || 'AI'} 피드백
                     </p>
-                    <p className="text-slate-600 font-medium">{review.comment}</p>
+                    <p className="text-slate-600 font-medium">{comment.content}</p>
                   </div>
 
-                  {review.suggestedCode && (
+                  {comment.suggestion && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between px-0.5">
                         <span className="text-[13px] font-bold text-slate-400 flex items-center gap-1 font-mono uppercase tracking-wider">
                           <Terminal size={12} /> Suggested Fix
                         </span>
                         <button
-                          onClick={() => copyToClipboard(review.suggestedCode, review.id || idx)}
+                          onClick={() => copyToClipboard(comment.suggestion, idx)}
                           className="flex items-center gap-1 text-[11px] font-bold text-[#0066ff] hover:text-blue-800 hover:underline cursor-pointer bg-blue-50/70 px-2 py-0.5 rounded-md transition-colors"
                         >
-                          {copiedId === (review.id || idx) ? (
+                          {copiedId === idx ? (
                             <><Check size={20} /> 복사 완료</>
                           ) : (
                             <><Copy size={20} /></>
@@ -186,7 +222,7 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
                         </button>
                       </div>
                       <pre className="bg-[#0f172a] text-slate-200 px-5 py-4 rounded-xl font-mono text-xs overflow-x-auto border border-slate-800 shadow-lg leading-relaxed">
-                        <code>{review.suggestedCode}</code>
+                        <code>{comment.suggestion}</code>
                       </pre>
                     </div>
                   )}
@@ -196,16 +232,19 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
               <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-500 shadow-sm">
                 <ShieldCheck size={36} className="text-emerald-500 mx-auto mb-2" />
                 <h4 className="font-black text-slate-900 text-sm">심각한 코드 결함 없음</h4>
-                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">Claude API 가 분석한 특이사항 및 결함 코드가 존재하지 않습니다.</p>
+                <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto leading-relaxed">
+                  {detail?.review?.engineId?.toUpperCase() || 'AI'} 가 분석한 특이사항 및 결함 코드가 존재하지 않습니다.
+                </p>
               </div>
             )}
           </div>
         )}
 
+
         {/* 2️⃣ Playwright E2E Test 탭 */}
         {activeTab === 'e2e' && (
           <div className="space-y-5">
-            {pipeline.e2eTests && pipeline.e2eTests.length > 0 ? (
+            {detail?.steps && detail.steps.length > 0 ? (
               <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
                 <div className="bg-slate-50/80 px-5 py-3.5 border-b border-slate-200 flex justify-between items-center">
                   <span className="text-xs font-black text-slate-600 flex items-center gap-1.5">
@@ -214,23 +253,32 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
                   <span className="text-[10px] font-mono font-black bg-slate-200/80 px-2 rounded text-slate-600">
                     Playwright Engine
                   </span>
+                  {detail?.testRun?.coveragePct != null && (
+                  <span className="text-[10px] font-mono font-black bg-emerald-100 px-2 rounded text-emerald-700">
+                    Coverage {detail.testRun.coveragePct}%
+                  </span>
+)}
                 </div>
                 <div className="divide-y divide-slate-100">
-                  {pipeline.e2eTests.map((test, idx) => (
-                    <div key={test.id || idx} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/30 transition-colors">
+                  {detail.steps.map((step, idx) => (
+                    <div key={idx} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/30 transition-colors">
                       <div className="space-y-1 max-w-2xl">
-                        <p className="text-sm font-black text-slate-800">{test.testCaseName}</p>
-                        {test.errorMessage && (
+                        <p className="text-sm font-black text-slate-800">{step.stepType}</p>
+                        {step.errorMessage && (
                           <pre className="text-[11px] font-mono text-rose-600 bg-rose-50 px-4 py-3 rounded-xl border border-rose-100 mt-2 overflow-x-auto leading-relaxed shadow-inner max-w-full">
-                            {test.errorMessage}
+                            {step.errorMessage}
                           </pre>
                         )}
                       </div>
                       <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                        <span className="font-mono text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{formatDuration(test.durationSeconds)}</span>
-                        {test.status?.toUpperCase() === 'PASSED' ? (
+                        <span className="font-mono text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded">{formatDuration(step.durationSeconds)}</span>
+                        {step.status?.toUpperCase() === 'SUCCESS' ? (
                           <span className="flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-lg border border-emerald-200">
-                            <CheckCircle2 size={13} /> PASSED
+                            <CheckCircle2 size={13} /> SUCCESS
+                          </span>
+                        ) : step.status?.toUpperCase() === 'SKIPPED' ? (
+                          <span className="flex items-center gap-1 text-xs font-black text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
+                            <Terminal size={13} /> SKIPPED
                           </span>
                         ) : (
                           <span className="flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 px-2.5 py-0.5 rounded-lg border border-rose-200">
@@ -255,11 +303,11 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
         {/* 3️⃣ 알림 수신 내역 탭 */}
         {activeTab === 'notifications' && (
           <div className="space-y-3">
-            {pipeline.notifications && pipeline.notifications.length > 0 ? (
-              pipeline.notifications.map((notif, idx) => (
+            {detail?.notifications && detail.notifications.length > 0 ? (
+              detail.notifications.map((notif, idx) => (
                 <div key={notif.id || idx} className="bg-white border border-slate-200 rounded-2xl p-4 flex items-center justify-between shadow-sm gap-4 hover:border-slate-300 transition-all">
                   <div className="flex items-center space-x-3">
-                    {notif.channel?.toLowerCase().includes('slack') ? (
+                    {notif.channelId?.toLowerCase().includes('slack') ? (
                       <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-500 shrink-0">
                         <Bell size={16} />
                       </div>
@@ -269,12 +317,12 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
                       </div>
                     )}
                     <div className="space-y-0.5">
-                      <h4 className="text-sm font-black text-slate-900">{notif.channel || 'Slack 알림'}</h4>
+                      <h4 className="text-sm font-black text-slate-900">{notif.channelId || 'Slack 알림'}</h4>
                       <p className="text-xs text-slate-500 font-semibold">{notif.status || '성공적으로 연동 메시지 발송'}</p>
                     </div>
                   </div>
                   <span className="font-mono text-xs font-bold text-slate-400 bg-slate-50 px-2 py-0.5 rounded border border-slate-100 shrink-0">
-                    {formatDate(notif.time || pipeline.completedAt)}
+                    {formatDate(notif.sentAt || pipeline.completedAt)}
                   </span>
                 </div>
               ))

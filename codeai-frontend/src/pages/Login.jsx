@@ -44,13 +44,14 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
             localStorage.setItem("tokenExpiresIn", "3600");
 
         const sessionUser = {
-            username: "미현",
+            username: "유저",
             email,
             loginTime: Date.now(),
+            role: "USER" // 테스트 계정은 일반 유저로 설정
         };
         localStorage.setItem("currentUser", JSON.stringify(sessionUser));
 
-        onLoginSuccess();
+        onLoginSuccess(sessionUser); // ← 위에서 만든 sessionUser 전달
         return;
     }
 
@@ -72,11 +73,13 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
                 username: email.split("@")[0] || "사용자",
                 email,
                 loginTime: Date.now(),
+                // 여기에 권한 정보를 추가합니다.
+                role: email === "admin@codi.com" ? "ADMIN" : "USER",
             };
             localStorage.setItem("currentUser", JSON.stringify(sessionUser));
 
             alert(result?.message || "로그인 성공");
-            onLoginSuccess();
+            onLoginSuccess(sessionUser); // ← sessionUser 전달
         } catch (error) {
             const message = error?.response
                 ? (error?.response?.data?.error?.message ||
