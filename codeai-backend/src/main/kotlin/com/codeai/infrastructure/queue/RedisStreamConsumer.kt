@@ -3,10 +3,12 @@ package com.codeai.infrastructure.queue
 import com.codeai.application.deploy.DeployUseCase
 import com.codeai.application.review.ReviewUseCase
 import com.codeai.application.testrun.TestRunUseCase
+import com.codeai.domain.pipeline.PipelineRepository
+import com.codeai.domain.testrun.TestRunStatus
+import com.codeai.infrastructure.cache.PipelineCacheService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -23,7 +25,9 @@ class RedisStreamConsumer(
     private val redisTemplate: ReactiveRedisTemplate<String, String>,
     private val reviewUseCase: ReviewUseCase,
     private val testRunUseCase: TestRunUseCase,
-    private val deployUseCase: DeployUseCase
+    private val deployUseCase: DeployUseCase,
+    private val pipelineRepository: PipelineRepository,
+    private val cache: PipelineCacheService,
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -49,6 +53,8 @@ class RedisStreamConsumer(
                     try {
                         log.info("Pipeline 처리 시작: executionId=$pipelineExecutionId")
 
+                        val reviewOk: Boolean
+                        val testOk: Boolean
                         coroutineScope {
                             val reviewJob = async {
                                 reviewUseCase.execute(
@@ -66,7 +72,16 @@ class RedisStreamConsumer(
                                     headSha = headSha
                                 )
                             }
-                            awaitAll(reviewJob, testJob)
+                            reviewOk = reviewJob.await()
+                            testOk = testJob.await().status == TestRunStatus.PASSED
+                        }
+
+                        // 리뷰 + 테스트 두 결과를 종합해 파이프라인 최종 status 결정
+                        pipelineRepository.findById(pipelineExecutionId)?.let { execution ->
+                            val finalExecution = if (reviewOk && testOk) execution.complete() else execution.fail()
+                            pipelineRepository.save(finalExecution)
+                            cache.evict(PipelineCacheService.detailKey(pipelineExecutionId))
+                            cache.evictByPattern("pipeline:list:*")
                         }
 
                         deployUseCase.triggerIfEligible(
@@ -79,6 +94,7 @@ class RedisStreamConsumer(
                         log.info("Pipeline 처리 완료: executionId=$pipelineExecutionId")
                     } catch (e: Exception) {
                         log.error("Pipeline 처리 실패: executionId=$pipelineExecutionId", e)
+                        ackMessage(record)
                     }
                 }
             }

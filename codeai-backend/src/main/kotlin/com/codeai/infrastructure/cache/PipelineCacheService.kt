@@ -55,6 +55,6 @@ class PipelineCacheService(
 
         fun detailKey(id: Long) = "pipeline:detail:$id"
 
-        fun statsKey(repositoryId: Long? = null) = "pipeline:stats:${repositoryId}"
+        fun statsKey(repositoryId: Long? = null, period: String = "7d") = "pipeline:stats:${repositoryId}:${period}"
     }
 }

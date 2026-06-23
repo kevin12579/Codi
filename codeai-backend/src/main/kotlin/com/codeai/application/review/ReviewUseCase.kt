@@ -31,7 +31,7 @@ class ReviewUseCase(
         headSha: String,
         prUrl: String,
         prTitle: String
-    ) {
+    ): Boolean {
         val execution = pipelineRepository.findById(pipelineExecutionId)
             ?: throw NoSuchElementException("PipelineExecution not found: $pipelineExecutionId")
         val startedExecution = pipelineRepository.save(execution.start())
@@ -76,7 +76,6 @@ class ReviewUseCase(
             review = reviewRepository.save(
                 review.complete(savedComments, reviewResult.tokensUsed, githubCommentId)
             )
-            pipelineRepository.save(startedExecution.complete())
             cache.evict(PipelineCacheService.detailKey(pipelineExecutionId))
             cache.evictByPattern("pipeline:list:*")
 
@@ -91,11 +90,12 @@ class ReviewUseCase(
                     prTitle = prTitle
                 )
             )
+            return true
         } catch (e: Exception) {
             log.error("코드리뷰 실패: pipelineExecutionId=$pipelineExecutionId", e)
             reviewRepository.save(review.fail())
-            pipelineRepository.save(startedExecution.fail())
             cache.evict(PipelineCacheService.detailKey(pipelineExecutionId))
+            return false
         }
     }
 }
