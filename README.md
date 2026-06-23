@@ -1,6 +1,6 @@
 <div align="center">
 
-# Codi
+<img src="codeai-frontend/src/LOGO1.png" width="600" alt="Codi Logo"/>
 
 **AI-Powered PR Review & Deploy Pipeline**
 
@@ -48,15 +48,15 @@ GitHub PR 오픈
 
 ## Tech Stack
 
-| | |
-|---|---|
-| **Backend** | Kotlin · Spring Boot WebFlux · Coroutines |
-| **Frontend** | React 18 · Vite · TailwindCSS |
-| **Database** | PostgreSQL · Redis (Stream / Cache) |
-| **AI** | Claude (Haiku) · GPT-4o Mini · Gemini 2.0 Flash |
-| **Testing** | Playwright (전용 Node.js 컨테이너) |
-| **MCP** | Spring AI 1.0.9 (SSE 전송) |
-| **Infra** | Docker Compose · GitHub Actions · Prometheus + Grafana |
+|              |                                                        |
+| ------------ | ------------------------------------------------------ |
+| **Backend**  | Kotlin · Spring Boot WebFlux · Coroutines              |
+| **Frontend** | React 18 · Vite · TailwindCSS                          |
+| **Database** | PostgreSQL · Redis (Stream / Cache)                    |
+| **AI**       | Claude (Haiku) · GPT-4o Mini · Gemini 2.0 Flash        |
+| **Testing**  | Playwright (전용 Node.js 컨테이너)                     |
+| **MCP**      | Spring AI 1.0.9 (SSE 전송)                             |
+| **Infra**    | Docker Compose · GitHub Actions · Prometheus + Grafana |
 
 ---
 
@@ -92,12 +92,12 @@ docker compose up -d
 
 ### 3. GitHub Webhook 등록
 
-| 항목 | 값 |
-|------|-----|
-| Payload URL | `https://{서버주소}/webhook/github` |
-| Content type | `application/json` |
-| Secret | `.env`의 `WEBHOOK_SECRET` |
-| Events | `Pull requests` |
+| 항목         | 값                                  |
+| ------------ | ----------------------------------- |
+| Payload URL  | `https://{서버주소}/webhook/github` |
+| Content type | `application/json`                  |
+| Secret       | `.env`의 `WEBHOOK_SECRET`           |
+| Events       | `Pull requests`                     |
 
 ### 4. 대시보드 접속
 
@@ -111,20 +111,20 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 ## Environment Variables
 
-| 변수 | 필수 | 설명 |
-|------|------|------|
-| `WEBHOOK_SECRET` | ✅ | GitHub Webhook HMAC 서명 키 |
-| `JWT_SECRET` | ✅ | JWT 서명 키 (256비트 이상) |
-| `AES_SECRET_KEY` | ✅ | 커넥터 API 키 암호화 키 (32바이트 hex) |
-| `CLAUDE_API_KEY` | — | Anthropic API 키 |
-| `CLAUDE_MODEL` | — | 기본값: `claude-haiku-4-5-20251001` |
-| `OPENAI_API_KEY` | — | OpenAI API 키 |
-| `OPENAI_MODEL` | — | 기본값: `gpt-4o-mini` |
-| `GEMINI_API_KEY` | — | Google Gemini API 키 |
-| `SLACK_WEBHOOK_URL` | — | Slack Incoming Webhook URL |
-| `GITHUB_TOKEN` | — | PR 댓글 작성용 토큰 |
-| `PLAYWRIGHT_ENABLED` | — | `true` 시 실제 E2E 테스트 실행 (기본값: `false`) |
-| `CODEAI_API_KEY` | — | MCP 엔드포인트 인증 키 (`X-Api-Key`) |
+| 변수                 | 필수 | 설명                                             |
+| -------------------- | ---- | ------------------------------------------------ |
+| `WEBHOOK_SECRET`     | ✅   | GitHub Webhook HMAC 서명 키                      |
+| `JWT_SECRET`         | ✅   | JWT 서명 키 (256비트 이상)                       |
+| `AES_SECRET_KEY`     | ✅   | 커넥터 API 키 암호화 키 (32바이트 hex)           |
+| `CLAUDE_API_KEY`     | —    | Anthropic API 키                                 |
+| `CLAUDE_MODEL`       | —    | 기본값: `claude-haiku-4-5-20251001`              |
+| `OPENAI_API_KEY`     | —    | OpenAI API 키                                    |
+| `OPENAI_MODEL`       | —    | 기본값: `gpt-4o-mini`                            |
+| `GEMINI_API_KEY`     | —    | Google Gemini API 키                             |
+| `SLACK_WEBHOOK_URL`  | —    | Slack Incoming Webhook URL                       |
+| `GITHUB_TOKEN`       | —    | PR 댓글 작성용 토큰                              |
+| `PLAYWRIGHT_ENABLED` | —    | `true` 시 실제 E2E 테스트 실행 (기본값: `false`) |
+| `CODEAI_API_KEY`     | —    | MCP 엔드포인트 인증 키 (`X-Api-Key`)             |
 
 ---
 
@@ -162,13 +162,13 @@ class DiscordChannel : NotificationChannel {
 
 ### 확장 가능한 SPI 목록
 
-| SPI | V1 구현체 | 확장 예시 |
-|-----|-----------|---------|
-| `AIReviewEngine` | Claude · GPT-4o · Gemini | Ollama (로컬 LLM) |
-| `VCSProvider` | GitHub | GitLab · Bitbucket |
-| `NotificationChannel` | Slack | Discord · Teams |
-| `TestRunner` | Playwright | Cypress |
-| `DeployProvider` | GitHub Actions | Jenkins · ArgoCD |
+| SPI                   | V1 구현체                | 확장 예시          |
+| --------------------- | ------------------------ | ------------------ |
+| `AIReviewEngine`      | Claude · GPT-4o · Gemini | Ollama (로컬 LLM)  |
+| `VCSProvider`         | GitHub                   | GitLab · Bitbucket |
+| `NotificationChannel` | Slack                    | Discord · Teams    |
+| `TestRunner`          | Playwright               | Cypress            |
+| `DeployProvider`      | GitHub Actions           | Jenkins · ArgoCD   |
 
 ---
 
@@ -177,14 +177,15 @@ class DiscordChannel : NotificationChannel {
 Claude Desktop · Cursor에서 Codi의 도구를 직접 호출할 수 있다.
 
 `claude_desktop_config.json`:
+
 ```json
 {
-  "mcpServers": {
-    "codi": {
-      "url": "http://localhost:8080/sse",
-      "headers": { "X-Api-Key": "<CODEAI_API_KEY>" }
+    "mcpServers": {
+        "codi": {
+            "url": "http://localhost:8080/sse",
+            "headers": { "X-Api-Key": "<CODEAI_API_KEY>" }
+        }
     }
-  }
 }
 ```
 
