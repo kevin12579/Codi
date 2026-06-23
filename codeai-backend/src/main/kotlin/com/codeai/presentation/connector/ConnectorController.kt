@@ -5,6 +5,8 @@ import com.codeai.presentation.common.ApiResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import kotlinx.coroutines.reactor.awaitSingle
+import org.springframework.security.core.context.ReactiveSecurityContextHolder
 import org.springframework.web.bind.annotation.*
 
 /**
@@ -33,7 +35,10 @@ class ConnectorController(private val useCase: ConnectorUseCase) {
         @PathVariable category: String,
         @RequestBody req: ConnectorUpdateRequest,
     ): ApiResponse<ConnectorUpdateResultDto> {
-        val result = useCase.update(category, req.activeProviders, req.config)
+        val email = ReactiveSecurityContextHolder.getContext()
+            .map { it.authentication?.details as? String ?: "system" }
+            .awaitSingle()
+        val result = useCase.update(category, req.activeProviders, req.config, email)
         val message = when (category) {
             "ai" -> "AI 엔진 변경 완료 (다음 파이프라인부터 적용)"
             "notify" -> "알림 채널 변경 완료"

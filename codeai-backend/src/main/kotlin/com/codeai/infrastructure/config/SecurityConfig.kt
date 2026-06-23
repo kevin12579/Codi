@@ -47,6 +47,7 @@ class SecurityConfig(
                     ).permitAll()
                     // MCP 엔드포인트: X-Api-Key 헤더로 별도 인증 (McpApiKeyFilter)
                     .pathMatchers("/sse", "/mcp/message").permitAll()
+                    .pathMatchers("/api/admin/**").hasRole("ADMIN")
                     .anyExchange().authenticated()
             }
             .exceptionHandling { ex ->
@@ -55,6 +56,14 @@ class SecurityConfig(
                         mapOf("success" to false, "error" to mapOf("code" to "UNAUTHORIZED", "message" to "인증이 필요합니다"))
                     )
                     exchange.response.statusCode = HttpStatus.UNAUTHORIZED
+                    exchange.response.headers.contentType = MediaType.APPLICATION_JSON
+                    exchange.response.writeWith(Mono.just(DefaultDataBufferFactory().wrap(body)))
+                }
+                ex.accessDeniedHandler { exchange, _ ->
+                    val body = objectMapper.writeValueAsBytes(
+                        mapOf("success" to false, "error" to mapOf("code" to "FORBIDDEN", "message" to "접근 권한이 없습니다"))
+                    )
+                    exchange.response.statusCode = HttpStatus.FORBIDDEN
                     exchange.response.headers.contentType = MediaType.APPLICATION_JSON
                     exchange.response.writeWith(Mono.just(DefaultDataBufferFactory().wrap(body)))
                 }

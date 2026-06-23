@@ -1,9 +1,11 @@
 package com.codeai.infrastructure.persistence.user
 
 import org.springframework.data.jpa.repository.JpaRepository
+import java.time.LocalDateTime
 import java.util.Optional
 
 interface UserJpaRepository : JpaRepository<UserEntity, Long> {
     fun findByEmail(email: String): Optional<UserEntity>
     fun existsByEmail(email: String): Boolean
+    fun countByCreatedAtAfter(since: LocalDateTime): Long
 }
