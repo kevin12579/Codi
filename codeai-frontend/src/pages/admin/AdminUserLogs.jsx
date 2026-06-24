@@ -1,32 +1,35 @@
     import { useState, useEffect } from 'react'
-
-    const mockLogs = [
-    { id: 1,  date: '2026-06-22 14:32', email: 'user@example.com', action: '로그인',         result: '성공' },
-    { id: 2,  date: '2026-06-22 14:35', email: 'mini432@example.com', action: '파이프라인 실행', result: '성공' },
-    { id: 3,  date: '2026-06-22 14:41', email: 'linni02@example.com', action: '파이프라인 실행', result: '실패' },
-    { id: 4,  date: '2026-06-22 14:50', email: 'dev01@example.com', action: '설정 변경',       result: '성공' },
-    { id: 5,  date: '2026-06-22 15:02', email: 'user03@example.com', action: '로그인',         result: '실패' },
-    { id: 6,  date: '2026-06-22 15:10', email: 'ez333@example.com', action: '파이프라인 실행', result: '성공' },
-    { id: 7,  date: '2026-06-22 15:15', email: 'tpep9@example.com', action: '설정 변경',       result: '성공' },
-    { id: 8,  date: '2026-06-22 15:22', email: 'd3201@example.com', action: '로그인',          result: '성공' },
-    { id: 9,  date: '2026-06-22 15:31', email: 'abc11104@example.com', action: '파이프라인 실행', result: '실패' },
-    { id: 10, date: '2026-06-22 15:45', email: 'kgfr88@example.com', action: '파이프라인 실행', result: '성공' },
-    { id: 11, date: '2026-06-22 16:00', email: 'pawqw3@example.com', action: '설정 변경',       result: '성공' },
-    { id: 12, date: '2026-06-22 16:12', email: 'ruruew2@example.com', action: '로그인',         result: '성공' },
-    { id: 13, date: '2026-06-22 16:20', email: 'dpepep02@example.com', action: '파이프라인 실행', result: '실패' },
-    { id: 14, date: '2026-06-22 16:35', email: 'gotohome@example.com', action: '파이프라인 실행', result: '성공' },
-    { id: 15, date: '2026-06-22 16:48', email: 'ruruew2@example.com', action: '설정 변경',       result: '성공' },
-    ]
+    import apiClient from '../../api/client'
 
     const ACTION_FILTERS = ['전체', '로그인', '파이프라인 실행', '설정 변경']
     const RESULT_FILTERS = ['전체', '성공', '실패']
 
     export default function AdminUserLogs() {
+    const [logs, setLogs] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
+
     const [search, setSearch] = useState('')
     const [actionFilter, setActionFilter] = useState('전체')
     const [resultFilter, setResultFilter] = useState('전체')
 
-    const filtered = mockLogs.filter(log => {
+    useEffect(() => {
+        const fetchLogs = async () => {
+        try {
+            setLoading(true)
+            const res = await apiClient.get('/admin/user-logs')
+            setLogs(res.data.data)
+        } catch (err) {
+            setError('이력 데이터를 불러오지 못했습니다.')
+            console.error(err)
+        } finally {
+            setLoading(false)
+        }
+        }
+        fetchLogs()
+    }, [])
+
+    const filtered = logs.filter(log => {
         const matchEmail  = log.email.toLowerCase().includes(search.toLowerCase())
         const matchAction = actionFilter === '전체' || log.action === actionFilter
         const matchResult = resultFilter === '전체' || log.result === resultFilter
@@ -91,45 +94,55 @@
             <span className="ml-auto text-xs text-slate-400 font-medium">{filtered.length}건</span>
         </div>
 
+        {/* 로딩 / 에러 */}
+        {loading && (
+            <p className="text-sm text-slate-400">데이터를 불러오는 중...</p>
+        )}
+        {error && (
+            <p className="text-sm text-rose-500">{error}</p>
+        )}
+
         {/* 테이블 */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        {!loading && !error && (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <table className="w-full text-sm">
-            <thead>
+                <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 w-44">날짜</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400">사용자</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 w-36">작업 유형</th>
-                <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 w-24">결과</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 w-44">날짜</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400">사용자</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 w-36">작업 유형</th>
+                    <th className="text-left px-5 py-3.5 text-xs font-semibold text-slate-400 w-24">결과</th>
                 </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
+                </thead>
+                <tbody className="divide-y divide-slate-50">
                 {filtered.length === 0 ? (
-                <tr>
+                    <tr>
                     <td colSpan={4} className="text-center py-16 text-sm text-slate-400">
-                    조건에 맞는 이력이 없습니다.
+                        조건에 맞는 이력이 없습니다.
                     </td>
-                </tr>
+                    </tr>
                 ) : (
-                filtered.map(log => (
+                    filtered.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="px-5 py-3.5 text-xs text-slate-400 font-mono">{log.date}</td>
-                    <td className="px-5 py-3.5 text-slate-700 font-medium">{log.email}</td>
-                    <td className="px-5 py-3.5 text-slate-600">{log.action}</td>
-                    <td className="px-5 py-3.5">
+                        <td className="px-5 py-3.5 text-xs text-slate-400 font-mono">{log.date}</td>
+                        <td className="px-5 py-3.5 text-slate-700 font-medium">{log.email}</td>
+                        <td className="px-5 py-3.5 text-slate-600">{log.action}</td>
+                        <td className="px-5 py-3.5">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-                        log.result === '성공'
+                            log.result === '성공'
                             ? 'bg-emerald-50 text-emerald-700'
                             : 'bg-rose-50 text-rose-600'
                         }`}>
-                        {log.result}
+                            {log.result}
                         </span>
-                    </td>
+                        </td>
                     </tr>
-                ))
+                    ))
                 )}
-            </tbody>
+                </tbody>
             </table>
-        </div>
+            </div>
+        )}
 
         </div>
     )

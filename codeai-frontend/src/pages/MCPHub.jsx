@@ -2,10 +2,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { getConnectorsOverview, testConnectorCategory } from '../api/connectors'
 import { getMcpTools, getRepositories } from '../api/mcp'
 import { getApiErrorMessage, isApiEnabled } from '../api/client'
+import { appendAdminAuditLog } from '../api/adminAudit'
 
-const MCP_SERVERS_STORAGE_KEY = 'mcpHubServersV1'
-const MCP_AUTO_REFRESH_STORAGE_KEY = 'mcpHubAutoRefreshV1'
-const MCP_DAY_KEY_STORAGE_KEY = 'mcpHubDayKeyV1'
+const getStorageScope = (mode) => {
+    if (mode === 'connectors') return 'connectors'
+    if (mode === 'mcp') return 'mcp'
+    return 'full'
+}
+
+const getStorageKeys = (mode) => {
+    const scope = getStorageScope(mode)
+    return {
+        servers: `mcpHubServersV1:${scope}`,
+        dayKey: `mcpHubDayKeyV1:${scope}`,
+        lastUpdatedAt: `mcpHubLastUpdatedAtV1:${scope}`,
+    }
+}
 
 const nowIso = () => new Date().toISOString()
 const minutesAgoIso = (minutes) => new Date(Date.now() - minutes * 60 * 1000).toISOString()
@@ -110,15 +122,15 @@ const formatDateKey = (date) => {
 
 const getTodayKey = () => formatDateKey(new Date())
 
-const getStoredDayKey = () => {
+const getStoredDayKey = (dayKeyStorageKey) => {
     try {
-        return localStorage.getItem(MCP_DAY_KEY_STORAGE_KEY)
+        return localStorage.getItem(dayKeyStorageKey)
     } catch {
         return null
     }
 }
 
-const isStoredDayCurrent = () => getStoredDayKey() === getTodayKey()
+const isStoredDayCurrent = (dayKeyStorageKey) => getStoredDayKey(dayKeyStorageKey) === getTodayKey()
 
 const getMsUntilNextMidnight = () => {
     const now = new Date()
@@ -127,11 +139,24 @@ const getMsUntilNextMidnight = () => {
     return nextMidnight.getTime() - now.getTime()
 }
 
-const loadInitialServers = () => {
-    if (!isStoredDayCurrent()) return mockServers.map(normalizeServer)
+const getCurrentUserLoginTime = () => {
+    try {
+        const raw = localStorage.getItem('currentUser')
+        if (!raw) return null
+        const parsed = JSON.parse(raw)
+        const loginTime = Number(parsed?.loginTime)
+        if (!Number.isFinite(loginTime) || loginTime <= 0) return null
+        return new Date(loginTime)
+    } catch {
+        return null
+    }
+}
+
+const loadInitialServers = (storageKeys) => {
+    if (!isStoredDayCurrent(storageKeys.dayKey)) return mockServers.map(normalizeServer)
 
     try {
-        const raw = localStorage.getItem(MCP_SERVERS_STORAGE_KEY)
+        const raw = localStorage.getItem(storageKeys.servers)
         if (!raw) return mockServers.map(normalizeServer)
         const parsed = JSON.parse(raw)
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -143,13 +168,24 @@ const loadInitialServers = () => {
     }
 }
 
-const loadInitialAutoRefresh = () => {
+const loadInitialLastUpdatedAt = (lastUpdatedStorageKey) => {
     try {
-        return localStorage.getItem(MCP_AUTO_REFRESH_STORAGE_KEY) === 'true'
+        const raw = localStorage.getItem(lastUpdatedStorageKey)
+        if (!raw) return null
+        const parsed = new Date(raw)
+        if (Number.isNaN(parsed.getTime())) return null
+        return parsed
     } catch {
-        return false
+        return null
     }
 }
+
+const summarizeServers = (items) => ({
+    total: items.length,
+    connected: items.filter((server) => server.status === 'connected').length,
+    errors: items.filter((server) => server.status === 'error').length,
+    totalTools: items.reduce((sum, server) => sum + server.tools, 0),
+})
 
 const simulateNextServers = (currentServers) => {
     let changed = 0
@@ -196,17 +232,17 @@ const simulateNextServers = (currentServers) => {
     return { next, changed }
 }
 
-export default function MCPHub({ isActive = true, mode = 'full' }) {
+export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false }) {
     const apiEnabled = isApiEnabled()
     const connectorOnlyMode = mode === 'connectors'
     const mcpOnlyMode = mode === 'mcp'
+    const storageKeys = getStorageKeys(mode)
     const [isLoading, setIsLoading] = useState(true)
     const [isRefreshing, setIsRefreshing] = useState(false)
-    const [isAutoRefresh, setIsAutoRefresh] = useState(loadInitialAutoRefresh)
     const [lastChangeCount, setLastChangeCount] = useState(0)
-    const [lastUpdatedAt, setLastUpdatedAt] = useState(new Date())
+    const [lastUpdatedAt, setLastUpdatedAt] = useState(() => loadInitialLastUpdatedAt(storageKeys.lastUpdatedAt))
     const [filter, setFilter] = useState('all')
-    const [servers, setServers] = useState(loadInitialServers)
+    const [servers, setServers] = useState(() => loadInitialServers(storageKeys))
     const [selectedServerId, setSelectedServerId] = useState('')
     const [slackEnabled, setSlackEnabled] = useState(true)
     const [discordEnabled, setDiscordEnabled] = useState(false)
@@ -214,15 +250,55 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
     const [discordWebhook, setDiscordWebhook] = useState('https://discord.com/api/webhooks/xxxx')
     const [testMessage, setTestMessage] = useState('')
     const [serverActionMessage, setServerActionMessage] = useState('')
+    const [adminSyncMessage, setAdminSyncMessage] = useState('')
+    const [adminSyncResult, setAdminSyncResult] = useState(null)
+    const [highlightedServerIds, setHighlightedServerIds] = useState([])
     const [activeSection, setActiveSection] = useState('')
     const [activeRepoName, setActiveRepoName] = useState('')
-    const [dayKey, setDayKey] = useState(getTodayKey)
+    const [dayKey, setDayKey] = useState(() => getStoredDayKey(storageKeys.dayKey) || getTodayKey())
     const [connectorOverview, setConnectorOverview] = useState(connectorOverviewSeed)
     const [repositories, setRepositories] = useState(repositorySeed)
     const [remoteMcpTools, setRemoteMcpTools] = useState([])
     const slackWebhookInputRef = useRef(null)
     const refreshInFlightRef = useRef(false)
     const refreshTimerRef = useRef(null)
+    const [activeEngine, setActiveEngine] = useState('')
+    const [apiKeyInput, setApiKeyInput] = useState('')
+    const [aiEngineLoading, setAiEngineLoading] = useState(false)
+    const [aiEngineMessage, setAiEngineMessage] = useState(null)
+
+    const handleSwitchEngine = async () => {
+    if (!activeEngine || !apiKeyInput.trim()) return
+    const savedToken = localStorage.getItem('authToken')
+    setAiEngineLoading(true)
+    setAiEngineMessage(null)
+    try {
+        const res = await fetch('/api/connectors/ai', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${savedToken}`,
+            },
+            body: JSON.stringify({
+                activeProviders: [activeEngine],
+                config: { [activeEngine]: { apiKey: apiKeyInput } },
+            }),
+        })
+        const result = await res.json()
+        if (result.success) {
+            setAiEngineMessage({ text: `${activeEngine} 엔진으로 변경되었습니다.`, isError: false })
+            setApiKeyInput('')
+        } else {
+            setAiEngineMessage({ text: result.error?.message || '변경 실패', isError: true })
+        }
+    } catch {
+        setAiEngineMessage({ text: '서버 오류가 발생했습니다.', isError: true })
+    } finally {
+        setAiEngineLoading(false)
+    }
+}
+
+    const highlightClearTimerRef = useRef(null)
 
     useEffect(() => {
         const timer = setTimeout(() => setIsLoading(false), 350)
@@ -299,32 +375,29 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
     }, [apiEnabled])
 
     useEffect(() => {
-        localStorage.setItem(MCP_SERVERS_STORAGE_KEY, JSON.stringify(servers))
-    }, [servers])
-
-    useEffect(() => {
-        localStorage.setItem(MCP_AUTO_REFRESH_STORAGE_KEY, String(isAutoRefresh))
-    }, [isAutoRefresh])
+        localStorage.setItem(storageKeys.servers, JSON.stringify(servers))
+    }, [servers, storageKeys.servers])
 
     const resetDailyData = useCallback((nextDayKey) => {
         setServers(mockServers)
         setSelectedServerId('')
         setLastChangeCount(0)
-        setLastUpdatedAt(new Date())
+        setLastUpdatedAt(null)
         setDayKey(nextDayKey)
 
-        localStorage.setItem(MCP_DAY_KEY_STORAGE_KEY, nextDayKey)
-        localStorage.setItem(MCP_SERVERS_STORAGE_KEY, JSON.stringify(mockServers))
-    }, [])
+        localStorage.setItem(storageKeys.dayKey, nextDayKey)
+        localStorage.setItem(storageKeys.servers, JSON.stringify(mockServers))
+        localStorage.removeItem(storageKeys.lastUpdatedAt)
+    }, [storageKeys.dayKey, storageKeys.lastUpdatedAt, storageKeys.servers])
 
     useEffect(() => {
-        if (!isStoredDayCurrent()) {
+        if (!isStoredDayCurrent(storageKeys.dayKey)) {
             resetDailyData(getTodayKey())
             return
         }
 
-        localStorage.setItem(MCP_DAY_KEY_STORAGE_KEY, getTodayKey())
-    }, [resetDailyData])
+        localStorage.setItem(storageKeys.dayKey, getTodayKey())
+    }, [resetDailyData, storageKeys.dayKey])
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -334,7 +407,7 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
         return () => clearTimeout(timer)
     }, [dayKey, resetDailyData])
 
-    const runRefresh = useCallback(() => {
+    const runRefresh = useCallback((options = {}) => {
         if (refreshInFlightRef.current) return
         refreshInFlightRef.current = true
         setIsRefreshing(true)
@@ -344,38 +417,79 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
                 let next = firstNext
                 let changed = firstChanged
 
-                // Ensure each refresh produces a visible state update.
-                if (changed === 0 && next.length > 0) {
+                // Manual refresh keeps state as-is when backend data is unchanged.
+                if (changed === 0 && next.length > 0 && options.ensureVisibleChange) {
                     const head = next[0]
                     const toggledStatus = head.status === 'connected' ? 'disconnected' : 'connected'
                     next = [{ ...head, status: toggledStatus, lastSeenAt: nowIso() }, ...next.slice(1)]
                     changed = 1
                 }
 
-                setLastChangeCount(changed)
+                if (options.captureDiff) {
+                    const previousSummary = summarizeServers(prev)
+                    const nextSummary = summarizeServers(next)
+                    const previousMap = new Map(prev.map((item) => [item.id, item]))
+                    const changedIds = next
+                        .filter((item) => {
+                            const before = previousMap.get(item.id)
+                            if (!before) return true
+                            return before.status !== item.status || before.tools !== item.tools
+                        })
+                        .map((item) => item.id)
+
+                    const isNoChange =
+                        previousSummary.total === nextSummary.total &&
+                        previousSummary.connected === nextSummary.connected &&
+                        previousSummary.errors === nextSummary.errors &&
+                        previousSummary.totalTools === nextSummary.totalTools &&
+                        changedIds.length === 0
+
+                    setAdminSyncResult({
+                        before: previousSummary,
+                        after: nextSummary,
+                        changedCount: changedIds.length,
+                        isNoChange,
+                    })
+                    setHighlightedServerIds(changedIds)
+
+                    if (highlightClearTimerRef.current) {
+                        clearTimeout(highlightClearTimerRef.current)
+                    }
+                    highlightClearTimerRef.current = setTimeout(() => {
+                        setHighlightedServerIds([])
+                    }, 3500)
+
+                    // Force sync re-baselines the live "change count" metric.
+                    if (options.resetChangeCounter) {
+                        setLastChangeCount(0)
+                    }
+                }
+
+                if (!options.resetChangeCounter) {
+                    setLastChangeCount(changed)
+                }
                 return next
             })
-            setLastUpdatedAt(new Date())
+            const forcedAt = options?.forcedTimestamp ? new Date(options.forcedTimestamp) : null
+            const refreshedAt = forcedAt && !Number.isNaN(forcedAt.getTime()) ? forcedAt : new Date()
+            setLastUpdatedAt(refreshedAt)
+            localStorage.setItem(storageKeys.lastUpdatedAt, refreshedAt.toISOString())
             setIsRefreshing(false)
             refreshInFlightRef.current = false
             refreshTimerRef.current = null
         }, 280)
-    }, [])
-
-    useEffect(() => {
-        if (!isAutoRefresh || !isActive) return undefined
-        runRefresh()
-        const interval = setInterval(() => {
-            runRefresh()
-        }, 10000)
-        return () => clearInterval(interval)
-    }, [isAutoRefresh, isActive, runRefresh])
+    }, [storageKeys.lastUpdatedAt])
 
     useEffect(() => {
         if (!isActive) return
-        // Refresh once when entering this tab/mode so users see up-to-date state immediately.
-        runRefresh()
-    }, [isActive, mode, runRefresh])
+        if (lastUpdatedAt) return
+
+        const loginTime = getCurrentUserLoginTime()
+        runRefresh({
+            ensureVisibleChange: true,
+            forcedTimestamp: loginTime || new Date(),
+        })
+    }, [isActive, lastUpdatedAt, runRefresh])
 
     useEffect(() => {
         if (isActive) return undefined
@@ -395,6 +509,10 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
             if (refreshTimerRef.current) {
                 clearTimeout(refreshTimerRef.current)
                 refreshTimerRef.current = null
+            }
+            if (highlightClearTimerRef.current) {
+                clearTimeout(highlightClearTimerRef.current)
+                highlightClearTimerRef.current = null
             }
             refreshInFlightRef.current = false
         }
@@ -421,12 +539,7 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
     }, [filteredServers, selectedServerId])
 
     const summary = useMemo(() => {
-        return {
-            total: servers.length,
-            connected: servers.filter((server) => server.status === 'connected').length,
-            errors: servers.filter((server) => server.status === 'error').length,
-            totalTools: servers.reduce((sum, server) => sum + server.tools, 0),
-        }
+        return summarizeServers(servers)
     }, [servers])
 
     const mcpTools = useMemo(() => {
@@ -482,13 +595,23 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
         }
     }
 
-    const toggleAutoRefresh = () => {
-        setIsAutoRefresh((prev) => {
-            const next = !prev
-            localStorage.setItem(MCP_AUTO_REFRESH_STORAGE_KEY, String(next))
-            return next
-        })
-    }
+    const handleManualRefresh = useCallback(() => {
+        setAdminSyncResult(null)
+        setHighlightedServerIds([])
+        runRefresh({ ensureVisibleChange: true })
+
+        if (isAdmin) {
+            appendAdminAuditLog({
+                category: 'mcp',
+                action: 'MCP_MANUAL_REFRESH',
+                message: `${mcpOnlyMode ? 'MCP 허브' : '커넥터 허브'} 수동 새로고침`,
+                meta: {
+                    mode,
+                    serverCount: servers.length,
+                },
+            })
+        }
+    }, [isAdmin, mcpOnlyMode, mode, runRefresh, servers.length])
 
     const highlightedSections = useMemo(() => {
         if (connectorOnlyMode) {
@@ -588,6 +711,29 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
         moveToSection('set004')
     }, [moveToSection, selectedServer])
 
+    const handleAdminForceSync = useCallback(() => {
+        const confirmed = window.confirm('강제 동기화를 진행하시겠습니까?')
+        if (!confirmed) {
+            setAdminSyncMessage('강제 동기화를 취소했습니다.')
+            setTimeout(() => setAdminSyncMessage(''), 1800)
+            return
+        }
+
+        runRefresh({ captureDiff: true, resetChangeCounter: true })
+        setAdminSyncMessage('관리자 강제 동기화를 실행했습니다. 변경 기록 카운터를 0으로 재기준화했습니다.')
+        setTimeout(() => setAdminSyncMessage(''), 2200)
+
+        appendAdminAuditLog({
+            category: 'mcp',
+            action: 'MCP_ADMIN_FORCE_SYNC',
+            message: `${mcpOnlyMode ? 'MCP 허브' : '커넥터 허브'} 관리자 강제 동기화`,
+            meta: {
+                mode,
+                serverCount: servers.length,
+            },
+        })
+    }, [mcpOnlyMode, mode, runRefresh, servers.length])
+
     return (
         <section className="space-y-6">
             <div className="flex flex-wrap items-end justify-between gap-3">
@@ -595,11 +741,29 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
                     <h1 className="text-2xl font-black tracking-tight text-slate-900">{connectorOnlyMode ? '커넥터 허브' : 'MCP 서버 허브'}</h1>
                     <p className="mt-1 text-sm text-slate-500">{connectorOnlyMode ? '플러그인 상태와 연결 설정을 한 곳에서 관리합니다.' : '연결 상태, 도구 수, 최근 상태를 한 곳에서 관리합니다.'}</p>
                     <p className="mt-1 text-xs text-slate-400">
-                        마지막 갱신: {lastUpdatedAt.toLocaleTimeString('ko-KR')} · 변경 감지 {lastChangeCount}건
+                        마지막 갱신: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString('ko-KR') : '-'} · 변경 감지 {lastChangeCount}건
                     </p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        type="button"
+                        onClick={handleManualRefresh}
+                        disabled={isRefreshing}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-black text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                        {isRefreshing ? '새로고침 중...' : '새로고침'}
+                    </button>
+                    {isAdmin && (
+                        <button
+                            type="button"
+                            onClick={handleAdminForceSync}
+                            disabled={isRefreshing}
+                            className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-black text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {isRefreshing ? '강제 동기화 중...' : '관리자 강제 동기화'}
+                        </button>
+                    )}
                     <label htmlFor="mcp-filter" className="text-xs font-bold uppercase tracking-wide text-slate-400">
                         상태 필터
                     </label>
@@ -614,29 +778,31 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
                         <option value="disconnected">연결 끊김</option>
                         <option value="error">오류</option>
                     </select>
-
-                    <button
-                        type="button"
-                        onClick={runRefresh}
-                        disabled={isRefreshing}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        {isRefreshing ? '갱신 중...' : '새로고침'}
-                    </button>
-
-                    <button
-                        type="button"
-                        onClick={toggleAutoRefresh}
-                        className={`rounded-lg px-3 py-2 text-xs font-semibold ${
-                            isAutoRefresh
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-slate-100 text-slate-600 border border-slate-200'
-                        }`}
-                    >
-                        자동 갱신 {isAutoRefresh ? 'ON' : 'OFF'}
-                    </button>
                 </div>
             </div>
+
+            {isAdmin && adminSyncMessage && (
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">
+                    {adminSyncMessage}
+                </div>
+            )}
+
+            {isAdmin && adminSyncResult && (
+                <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3 text-xs text-indigo-800">
+                    <p className="font-black">강제 동기화 결과</p>
+                    <p className="mt-1 font-semibold">
+                        {adminSyncResult.isNoChange
+                            ? '변경 없음 (0건)'
+                            : `변경 감지 ${adminSyncResult.changedCount}건`}
+                    </p>
+                    <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                        <p>등록 서버: {adminSyncResult.before.total} → {adminSyncResult.after.total}</p>
+                        <p>활성 연결: {adminSyncResult.before.connected} → {adminSyncResult.after.connected}</p>
+                        <p>오류 상태: {adminSyncResult.before.errors} → {adminSyncResult.after.errors}</p>
+                        <p>연결 도구: {adminSyncResult.before.totalTools} → {adminSyncResult.after.totalTools}</p>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-4">
                 <SummaryCard label="등록 서버" value={`${summary.total}개`} />
@@ -648,7 +814,12 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
             <div className="rounded-2xl border border-[#dbeafe] bg-gradient-to-r from-[#f8fbff] to-[#eef5ff] p-4 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-black tracking-tight text-slate-800">V1 보강 항목 5개 반영 완료</p>
-                    <span className="rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-2.5 py-1 text-[11px] font-black text-[#1d4ed8]">UPDATED</span>
+                    <div className="flex items-center gap-1.5">
+                        {isAdmin && (
+                            <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-black text-rose-700">ADMIN MODE</span>
+                        )}
+                        <span className="rounded-full border border-[#bfdbfe] bg-[#eff6ff] px-2.5 py-1 text-[11px] font-black text-[#1d4ed8]">UPDATED</span>
+                    </div>
                 </div>
                 <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-[#dbeafe]">
                     <div className="h-full w-full animate-pulse bg-[#3b82f6]" />
@@ -707,6 +878,8 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
                                             }}
                                             className={`cursor-pointer border-t border-slate-100 transition-colors hover:bg-slate-50 ${
                                                 selectedServer?.id === server.id ? 'bg-blue-50/50' : ''
+                                            } ${
+                                                highlightedServerIds.includes(server.id) ? 'bg-amber-50 ring-1 ring-amber-300' : ''
                                             }`}
                                         >
                                             <td className="px-4 py-3 font-semibold text-slate-800">{server.name}</td>
@@ -802,11 +975,48 @@ export default function MCPHub({ isActive = true, mode = 'full' }) {
                     <p className="mt-1 text-xs text-slate-500">V1 핵심: AI 3종 선택/교체</p>
                     <div className="mt-4 grid grid-cols-3 gap-2">
                         {['claude', 'openai', 'gemini'].map((engine) => (
-                            <div key={engine} className="rounded-lg border border-indigo-200 bg-white px-2 py-2 text-center text-xs font-semibold text-slate-700">
+                            <button
+                                key={engine}
+                                type="button"
+                                onClick={() => setActiveEngine(engine)}
+                                className={`rounded-lg border px-2 py-2 text-center text-xs font-semibold transition-all ${
+                                    activeEngine === engine
+                                        ? 'border-indigo-500 bg-indigo-600 text-white shadow-sm'
+                                        : 'border-indigo-200 bg-white text-slate-700 hover:border-indigo-400'
+                                }`}
+                            >
                                 {engine}
-                            </div>
+                            </button>
                         ))}
                     </div>
+                    {activeEngine && (
+                        <div className="mt-3 space-y-2">
+                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest block">
+                                {activeEngine.toUpperCase()} API Key
+                            </label>
+                            <input
+                                type="password"
+                                placeholder="sk-..."
+                                value={apiKeyInput}
+                                onChange={(e) => setApiKeyInput(e.target.value)}
+                                className="w-full bg-slate-50 border border-slate-200 focus:bg-white focus:border-indigo-400 rounded-xl px-4 py-2.5 text-xs font-mono focus:outline-none transition-all"
+                            />
+                            <p className="text-[11px] text-slate-400">저장하면 다음 파이프라인부터 적용됩니다.</p>
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={handleSwitchEngine}
+                        disabled={!activeEngine || !apiKeyInput.trim() || aiEngineLoading}
+                        className="mt-3 w-full rounded-lg bg-indigo-600 px-3 py-2 text-xs font-black text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                    >
+                        {aiEngineLoading ? '저장 중...' : '엔진 저장'}
+                    </button>
+                    {aiEngineMessage && (
+                        <p className={`mt-2 text-[11px] font-semibold ${aiEngineMessage.isError ? 'text-rose-500' : 'text-emerald-600'}`}>
+                            {aiEngineMessage.text}
+                        </p>
+                    )}
                 </div>
 
                 <div id="conn004" className={`rounded-2xl border-2 border-rose-400 bg-rose-50 p-5 shadow-md ring-2 transition-all ${activeSection === 'conn004' ? 'ring-rose-400 scale-[1.01]' : 'ring-rose-200'}`}>

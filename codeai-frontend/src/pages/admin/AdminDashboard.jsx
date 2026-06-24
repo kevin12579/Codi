@@ -3,60 +3,7 @@
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
     } from 'recharts'
     import { Users, Activity, AlertTriangle, ShieldAlert, ShieldCheck } from 'lucide-react'
-
-    const hourlyData = [
-    { time: '00시', count: 3 },
-    { time: '01시', count: 1 },
-    { time: '02시', count: 0 },
-    { time: '03시', count: 0 },
-    { time: '04시', count: 2 },
-    { time: '05시', count: 1 },
-    { time: '06시', count: 4 },
-    { time: '07시', count: 6 },
-    { time: '08시', count: 11 },
-    { time: '09시', count: 18 },
-    { time: '10시', count: 22 },
-    { time: '11시', count: 19 },
-    { time: '12시', count: 15 },
-    { time: '13시', count: 21 },
-    { time: '14시', count: 25 },
-    { time: '15시', count: 17 },
-    { time: '16시', count: 20 },
-    { time: '17시', count: 14 },
-    { time: '18시', count: 9 },
-    { time: '19시', count: 7 },
-    { time: '20시', count: 5 },
-    { time: '21시', count: 4 },
-    { time: '22시', count: 3 },
-    { time: '23시', count: 2 },
-    ]
-
-    const statCards = [
-    {
-        label: '전체 유저 수',
-        value: 24,
-        sub: '이번 달 +3명 가입',
-        icon: Users,
-        color: 'text-blue-600',
-        bg: 'bg-blue-50',
-    },
-    {
-        label: '실행 중인 파이프라인',
-        value: 7,
-        sub: '현재 활성 상태',
-        icon: Activity,
-        color: 'text-emerald-600',
-        bg: 'bg-emerald-50',
-    },
-    {
-        label: '총 에러 발생',
-        value: 3,
-        sub: '최근 24시간 기준',
-        icon: AlertTriangle,
-        color: 'text-rose-600',
-        bg: 'bg-rose-50',
-    },
-    ]
+    import apiClient from '../../api/client'
 
     function Counter({ end }) {
     const [count, setCount] = useState(0)
@@ -74,6 +21,59 @@
     }
 
     export default function AdminDashboard({ maintenanceMode, onToggleMaintenance }) {
+    const [stats, setStats] = useState(null)
+    const [hourlyData, setHourlyData] = useState([])
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
+
+    useEffect(() => {
+        const fetchData = async () => {
+        try {
+            setLoading(true)
+                const [statsRes, hourlyRes] = await Promise.all([
+                apiClient.get('/admin/stats'),
+                apiClient.get('/admin/pipeline-hourly'),
+                ])
+            setStats(statsRes.data.data)
+            setHourlyData(hourlyRes.data.data)
+        } catch (err) {
+            setError('데이터를 불러오지 못했습니다.')
+            console.error(err)
+        } finally {
+            setLoading(false)
+        }
+        }
+        fetchData()
+    }, [])
+
+    const statCards = stats
+        ? [
+            {
+            label: '전체 유저 수',
+            value: stats.totalUsers,
+            sub: `이번 달 +${stats.monthlyNewUsers}명 가입`,
+            icon: Users,
+            color: 'text-blue-600',
+            bg: 'bg-blue-50',
+            },
+            {
+            label: '실행 중인 파이프라인',
+            value: stats.activePipelines,
+            sub: '현재 활성 상태',
+            icon: Activity,
+            color: 'text-emerald-600',
+            bg: 'bg-emerald-50',
+            },
+            {
+            label: '총 에러 발생',
+            value: stats.recentErrors,
+            sub: '최근 24시간 기준',
+            icon: AlertTriangle,
+            color: 'text-rose-600',
+            bg: 'bg-rose-50',
+            },
+        ]
+        : []
 
     return (
         <div className="space-y-8">
@@ -108,53 +108,65 @@
             </div>
         )}
 
+        {/* 로딩 / 에러 */}
+        {loading && (
+            <p className="text-sm text-slate-400">데이터를 불러오는 중...</p>
+        )}
+        {error && (
+            <p className="text-sm text-rose-500">{error}</p>
+        )}
+
         {/* 스탯 카드 */}
-        <div className="grid grid-cols-3 gap-5">
+        {!loading && !error && (
+            <div className="grid grid-cols-3 gap-5">
             {statCards.map(({ label, value, sub, icon: Icon, color, bg }) => (
-            <div key={label} className="bg-white rounded-2xl border border-slate-100 p-6 flex items-start gap-4 shadow-sm">
+                <div key={label} className="bg-white rounded-2xl border border-slate-100 p-6 flex items-start gap-4 shadow-sm">
                 <div className={`${bg} ${color} p-3 rounded-xl`}>
-                <Icon size={20} />
+                    <Icon size={20} />
                 </div>
                 <div>
-                <p className="text-xs text-slate-400 font-medium mb-1">{label}</p>
-                <p className="text-3xl font-bold text-slate-900">
+                    <p className="text-xs text-slate-400 font-medium mb-1">{label}</p>
+                    <p className="text-3xl font-bold text-slate-900">
                     <Counter end={value} />
                     </p>
-                <p className="text-xs text-slate-400 mt-1">{sub}</p>
+                    <p className="text-xs text-slate-400 mt-1">{sub}</p>
                 </div>
-            </div>
+                </div>
             ))}
-        </div>
+            </div>
+        )}
 
         {/* 차트 */}
-        <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+        {!loading && !error && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
             <div className="flex items-center justify-between mb-6">
-            <div>
+                <div>
                 <h2 className="text-base font-bold text-slate-900">파이프라인 실행 추이</h2>
                 <p className="text-xs text-slate-400 mt-0.5">최근 24시간 기준</p>
-            </div>
-            <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">오늘</span>
+                </div>
+                <span className="text-xs font-semibold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">오늘</span>
             </div>
 
             <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={hourlyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                <AreaChart data={hourlyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
                 <defs>
-                <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
+                    <linearGradient id="blueGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0066ff" stopOpacity={0.15} />
                     <stop offset="95%" stopColor="#0066ff" stopOpacity={0} />
-                </linearGradient>
+                    </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                 <XAxis dataKey="time" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} interval={3} />
                 <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
                 <Tooltip
-                contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
-                labelStyle={{ fontWeight: 600, color: '#0f172a' }}
+                    contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', fontSize: '12px' }}
+                    labelStyle={{ fontWeight: 600, color: '#0f172a' }}
                 />
                 <Area type="monotone" dataKey="count" stroke="#0066ff" strokeWidth={2} fill="url(#blueGrad)" dot={false} activeDot={{ r: 4 }} />
-            </AreaChart>
+                </AreaChart>
             </ResponsiveContainer>
-        </div>
+            </div>
+        )}
 
         </div>
     )
