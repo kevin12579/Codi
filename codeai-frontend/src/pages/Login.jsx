@@ -2,8 +2,6 @@ import React, { useState } from "react";
 import { login } from "../api/auth";
 import CodiLogo from "../LOGO1.png";
 
-
-
 const REGISTERED_USERS_KEY = "registeredUsers";
 
 const getRegisteredUsers = () => {
@@ -24,7 +22,7 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
     
     const [findIdEmail, setFindIdEmail] = useState("");
     
-    const [findPwEmail, setFindPwEmail] = useState("");
+    const [findPwUsername, setFindPwUsername] = useState(""); // 변수명 직관적으로 변경 (findPwEmail -> findPwUsername)
     const [findPwName, setFindPwName] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmNewPassword, setConfirmNewPassword] = useState("");
@@ -36,24 +34,23 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
             return;
         }
 
-
         // 🔧 테스트용 임시 계정 (백엔드 연동 없이 바로 통과)
         if (email === "test@naver.com" && password === "test1234") {
             localStorage.setItem("authToken", "dev-fake-token");
             localStorage.setItem("tokenType", "Bearer");
             localStorage.setItem("tokenExpiresIn", "3600");
 
-        const sessionUser = {
-            username: "유저",
-            email,
-            loginTime: Date.now(),
-            role: "USER" // 테스트 계정은 일반 유저로 설정
-        };
-        localStorage.setItem("currentUser", JSON.stringify(sessionUser));
+            const sessionUser = {
+                username: "유저",
+                email,
+                loginTime: Date.now(),
+                role: "USER" 
+            };
+            localStorage.setItem("currentUser", JSON.stringify(sessionUser));
 
-        onLoginSuccess(sessionUser); // ← 위에서 만든 sessionUser 전달
-        return;
-    }
+            onLoginSuccess(sessionUser);
+            return;
+        }
 
         try {
             setIsSubmitting(true);
@@ -73,19 +70,18 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
                 username: email.split("@")[0] || "사용자",
                 email,
                 loginTime: Date.now(),
-                // 여기에 권한 정보를 추가합니다.
                 role: authData.role || "USER",
             };
             localStorage.setItem("currentUser", JSON.stringify(sessionUser));
 
             alert(result?.message || "로그인 성공");
-            onLoginSuccess(sessionUser); // ← sessionUser 전달
+            onLoginSuccess(sessionUser);
         } catch (error) {
             const message = error?.response
                 ? (error?.response?.data?.error?.message ||
                     error?.response?.data?.message ||
                     "로그인 중 오류가 발생했습니다.")
-                    : "백엔드 서버에 연결할 수 없습니다. API 서버가 실행 중인지 확인해주세요.";
+                : "백엔드 서버에 연결할 수 없습니다. API 서버가 실행 중인지 확인해주세요.";
             alert(message);
         } finally {
             setIsSubmitting(false);
@@ -123,7 +119,7 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
     const handleFindPw = (e) => {
         e.preventDefault();
         
-        if (!findPwEmail || !findPwName || !newPassword || !confirmNewPassword) {
+        if (!findPwUsername || !findPwName || !newPassword || !confirmNewPassword) {
             alert("모든 빈칸을 채워주세요.");
             return;
         }
@@ -139,19 +135,20 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
             return;
         }
 
-        let existingUsers = JSON.parse(localStorage.getItem("users")) || [];
+        // 키 이름을 REGISTERED_USERS_KEY("registeredUsers")로 통일하여 매칭 확률을 높임
+        let existingUsers = getRegisteredUsers(); 
         const userIndex = existingUsers.findIndex(
-            u => u.username === findPwEmail && u.name === findPwName
+            u => u.username === findPwUsername && u.name === findPwName
         );
 
         if (userIndex !== -1) {
             existingUsers[userIndex].password = newPassword;
-            localStorage.setItem("users", JSON.stringify(existingUsers));
+            localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify(existingUsers));
             
             alert("비밀번호가 성공적으로 재설정되었습니다! 새 비밀번호로 로그인해 주세요.");
             
             setActiveModal(null);
-            setFindPwEmail("");
+            setFindPwUsername("");
             setFindPwName("");
             setNewPassword("");
             setConfirmNewPassword("");
@@ -160,16 +157,17 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
         }
     };
 
-return (
+    return (
         <div className="flex min-h-screen flex-col items-center justify-center bg-[#f8fafc] px-4 w-screen h-screen select-none font-sans antialiased relative">
             
-            {/* 로고 영역 */}
-            <div 
-            className="px-6 py-5 border-b border-[#f1f5f9] flex items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors"
-            onClick={() => setActiveTab('dashboard')}
-            >
-            <img src={CodiLogo} alt="Codi 로고" className="w-36 h-auto object-contain" />
-            </div>
+        {/* 로고 영역 - 버그 수정 완료 */}
+        <div className="px-2 py-2 flex justify-center">
+            <img 
+            src={CodiLogo} 
+            alt="Codi Logo" 
+            className="w-44 h-auto object-contain" 
+            />
+        </div>
 
             <div className="w-full max-w-[460px] rounded-2xl border border-[#e2e8f0] bg-white p-8 shadow-sm">
                 <h2 className="text-xl font-bold text-slate-900 mb-6 text-center">로그인</h2>
@@ -218,6 +216,7 @@ return (
                 <button type="button" onClick={onNavigateToRegister} className="font-bold text-[#0066ff] hover:underline">회원가입</button>
             </div>
 
+            {/* 아이디 찾기 모달 */}
             {activeModal === "findId" && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <div className="w-full max-w-sm rounded-2xl border border-[#e2e8f0] bg-white p-6 shadow-xl">
@@ -241,6 +240,7 @@ return (
                 </div>
             )}
 
+            {/* 비밀번호 재설정 모달 */}
             {activeModal === "findPw" && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
                     <div className="w-full max-w-sm rounded-2xl border border-[#e2e8f0] bg-white p-6 shadow-xl">
@@ -250,8 +250,8 @@ return (
                         <form onSubmit={handleFindPw} className="space-y-3">
                             <input
                                 type="text"
-                                value={findPwEmail}
-                                onChange={(e) => setFindPwEmail(e.target.value)}
+                                value={findPwUsername}
+                                onChange={(e) => setFindPwUsername(e.target.value)}
                                 className="w-full rounded-xl border border-[#e2e8f0] px-4 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-[#0066ff]"
                                 placeholder="ID (아이디)"
                             />
