@@ -32,40 +32,44 @@ export default function App() {
   const [stats, setStats] = useState(null)
   const intervalRef = useRef(null)
   const [isMcpOpen, setIsMcpOpen] = useState(false)
-  const [maintenanceMode, setMaintenanceMode] = useState(false); // 시스템 점검 모달
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
 
   const [currentUser, setCurrentUser] = useState({ 
-  username: '사용자', 
-  email: 'user@example.com',
-  role: 'USER' 
+    username: '사용자', 
+    email: 'user@example.com',
+    role: 'USER' 
   })
   const [isAdminOpen, setIsAdminOpen] = useState(false)
 
+  const [darkMode, setDarkMode] = useState(false)
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }, [darkMode])
 
-
-const handleLoginSuccess = (userData) => {
-  const userRole = userData?.email === 'admin@codi.com' ? 'ADMIN' : 'USER';
-  const user = { ...userData, role: userRole };
-  setCurrentUser(user);
-  localStorage.setItem("currentUser", JSON.stringify(user)); // ← 이거 추가
-  setIsLoggedIn(true);
-};
+  const handleLoginSuccess = (userData) => {
+    const user = { ...userData, role: userData?.role || 'USER' };
+    setCurrentUser(user);
+    localStorage.setItem("currentUser", JSON.stringify(user));
+    setIsLoggedIn(true);
+  };
 
   const [pipelines, setPipelines] = useState([]);
 
-  // ✅ 1. 로그인 상태 복원 (최초 마운트 시 1회 실행)
   useEffect(() => {
     const user = localStorage.getItem("currentUser");
     if (user) {
       setIsLoggedIn(true);
       try {
-          const parsedUser = JSON.parse(user);
-          setCurrentUser({
-            username: parsedUser.username || '사용자',
-            email: parsedUser.email || 'user@example.com',
-            // 저장된 role을 그대로 사용 (없으면 'USER' 기본값)
-            role: parsedUser.role || 'USER' 
-          });
+        const parsedUser = JSON.parse(user);
+        setCurrentUser({
+          username: parsedUser.username || '사용자',
+          email: parsedUser.email || 'user@example.com',
+          role: parsedUser.role || 'USER' 
+        });
       } catch (e) {
         setCurrentUser({ 
           username: user, 
@@ -76,54 +80,49 @@ const handleLoginSuccess = (userData) => {
     }
   }, []);
 
-  // ✅ 2. 로그인 상태일 때만 브라우저 스토리지의 토큰을 읽어 API 요청 (문법 오류 수정 완료)
   useEffect(() => {
-  if (!isLoggedIn) return;
+    if (!isLoggedIn) return;
 
-  const savedToken = localStorage.getItem("authToken");
-  if (!savedToken) return;
+    const savedToken = localStorage.getItem("authToken");
+    if (!savedToken) return;
 
-  const authHeader = `Bearer ${savedToken}`;
+    const authHeader = `Bearer ${savedToken}`;
 
-  const fetchAll = () => {
-    // 1) 통계
-    fetch('/api/pipelines/stats', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json', 'Authorization': authHeader }
-    })
-    .then(res => { if (!res.ok) throw new Error('Stats 응답 에러'); return res.json(); })
-    .then(data => { if (data.success) setStats(data.data); })
-    .catch(err => console.error('stats fetch 실패:', err));
+    const fetchAll = () => {
+      fetch('/api/pipelines/stats', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader }
+      })
+      .then(res => { if (!res.ok) throw new Error('Stats 응답 에러'); return res.json(); })
+      .then(data => { if (data.success) setStats(data.data); })
+      .catch(err => console.error('stats fetch 실패:', err));
 
-    // 2) 파이프라인 목록
-    fetch('/api/pipelines', {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json', 'Authorization': authHeader }
-    })
-    .then(res => { if (!res.ok) throw new Error('Pipelines 응답 에러'); return res.json(); })
-    .then(json => {
-      if (json.success) {
-        const list = json.data.content || json.data;
-        setPipelines(list);
-
-        // RUNNING 없으면 폴링 중단
-        const hasRunning = list.some(p => p.status?.toUpperCase() === 'RUNNING');
-        if (!hasRunning && intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
+      fetch('/api/pipelines', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader }
+      })
+      .then(res => { if (!res.ok) throw new Error('Pipelines 응답 에러'); return res.json(); })
+      .then(json => {
+        if (json.success) {
+          const list = json.data.content || json.data;
+          setPipelines(list);
+          const hasRunning = list.some(p => p.status?.toUpperCase() === 'RUNNING');
+          if (!hasRunning && intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
         }
-      }
-    })
-    .catch(err => console.error('pipelines fetch 실패:', err));
-  };
+      })
+      .catch(err => console.error('pipelines fetch 실패:', err));
+    };
 
-  fetchAll(); // 최초 1회 즉시 실행
-  intervalRef.current = setInterval(fetchAll, 5000); // 5초 폴링
+    fetchAll();
+    intervalRef.current = setInterval(fetchAll, 5000);
 
-  return () => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-  };
-}, [isLoggedIn]);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isLoggedIn]);
 
   const handleSelectPipeline = (id) => {
     setSelectedPipelineId(id)
@@ -152,21 +151,20 @@ const handleLoginSuccess = (userData) => {
         alert(message);
       }
     } finally {
-        localStorage.removeItem("currentUser");
-        localStorage.removeItem("authToken");
-        localStorage.removeItem("tokenType");
-        localStorage.removeItem("tokenExpiresIn");
-        
-        // ← 이거 추가
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-          intervalRef.current = null;
-        }
-        
-        setIsLoggedIn(false);
-        setActiveTab('dashboard');
-        alert("로그아웃 되었습니다. 다시 로그인 해주세요.");
+      localStorage.removeItem("currentUser");
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("tokenType");
+      localStorage.removeItem("tokenExpiresIn");
+      
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
+      
+      setIsLoggedIn(false);
+      setActiveTab('dashboard');
+      alert("로그아웃 되었습니다. 다시 로그인 해주세요.");
+    }
   }, []);
 
   const userInitial = currentUser.username ? currentUser.username.charAt(0) : "U";
@@ -177,44 +175,42 @@ const handleLoginSuccess = (userData) => {
     }
     return (
       <Login
-        onLoginSuccess={handleLoginSuccess}  // ← 이렇게
+        onLoginSuccess={handleLoginSuccess}
         onNavigateToRegister={() => setIsRegisterMode(true)}
       />
     );
   }
 
-// userlog
-console.log("현재 사용자 권한:", currentUser?.role);
-console.log("현재 로그인한 사용자:", currentUser?.email);
-
-return (
+  return (
     <SessionManager onTimeout={handleSystemLogout}>
       {({ timeLeft, formatTime }) => (
         
-        <div className="min-h-screen bg-[#f8fafc] text-slate-900 font-sans antialiased flex w-screen">
+        <div className="min-h-screen bg-[#f8fafc] dark:bg-slate-900 text-slate-900 dark:text-white font-sans antialiased flex w-screen">
           {/* 사이드바 */}
-          <aside className="w-64 bg-white border-r border-[#e2e8f0] flex flex-col shrink-0 sticky top-0 h-screen z-20">
+          <aside className="w-64 bg-white dark:bg-slate-800 border-r border-[#e2e8f0] dark:border-slate-700 flex flex-col shrink-0 sticky top-0 h-screen z-20">
 
-            {/* 로고 영역 - 고정 */}
+            {/* 로고 영역 */}
             <div
-              className="px-6 py-5 border-b border-[#f1f5f9] flex items-center justify-center cursor-pointer hover:bg-slate-50 transition-colors shrink-0"
+              className="px-6 py-5 border-b border-[#f1f5f9] dark:border-slate-700 flex items-center justify-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shrink-0"
               onClick={() => setActiveTab('dashboard')}
             >
               <img src={CodiLogo} alt="Codi 로고" className="w-36 h-auto object-contain" />
             </div>
 
-            {/* nav - 스크롤 영역 */}
+            {/* nav */}
             <nav className="px-4 py-6 space-y-1.5 flex-1 overflow-y-auto min-h-0">
+
+              {/* 대시보드 */}
               <button
                 onClick={() => setActiveTab('dashboard')}
                 className={`w-full px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
-                  activeTab === 'dashboard' ? 'bg-[#e6f0ff] text-[#0066ff]' : 'text-slate-600 hover:bg-slate-50'
+                  activeTab === 'dashboard'
+                    ? 'bg-[#e6f0ff] text-[#0066ff]'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${
-                  activeTab === 'dashboard' 
-                    ? 'bg-[#0066ff] animate-glow' 
-                    : 'bg-slate-300'
+                  activeTab === 'dashboard' ? 'bg-[#0066ff] animate-glow' : 'bg-slate-300'
                 }`} />
                 대시보드
               </button>
@@ -223,7 +219,9 @@ return (
               <button
                 onClick={() => setActiveTab('connector')}
                 className={`w-full px-4 py-3 rounded-xl text-sm font-medium flex items-center gap-2 ${
-                  activeTab === 'connector' ? 'bg-[#e6f0ff] text-[#0066ff]' : 'text-slate-600 hover:bg-slate-50'
+                  activeTab === 'connector'
+                    ? 'bg-[#e6f0ff] text-[#0066ff]'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                 }`}
               >
                 <span className={`w-1.5 h-1.5 rounded-full ${
@@ -232,20 +230,22 @@ return (
                 커넥터
               </button>
 
+              {/* 파이프라인 */}
               <div>
                 <button
                   onClick={() => setIsPipelineOpen(!isPipelineOpen)}
                   className={`w-full px-4 py-3 rounded-xl text-sm font-medium flex items-center justify-between ${
-                    activeTab === 'pipeline-list' ? 'bg-[#e6f0ff] text-[#0066ff]' : 'text-slate-600 hover:bg-slate-50'
+                    (activeTab === 'pipeline-list' || activeTab === 'pipeline-detail' || activeTab === 'pipeline-stats')
+                      ? 'bg-[#e6f0ff] text-[#0066ff]'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
-                <div className="flex items-center gap-2">
-                      {/* 2. 점 색상 및 애니메이션 조건 수정 */}
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        (activeTab === 'pipeline-list' || activeTab === 'pipeline-detail')
-                          ? 'bg-[#0066ff] animate-glow' 
-                          : 'bg-slate-300'
-                      }`} />
+                  <div className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      (activeTab === 'pipeline-list' || activeTab === 'pipeline-detail')
+                        ? 'bg-[#0066ff] animate-glow'
+                        : 'bg-slate-300'
+                    }`} />
                     <span>파이프라인</span>
                   </div>
                   {isPipelineOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -255,22 +255,19 @@ return (
                   <div className="pl-4 mt-1 space-y-1">
                     <button
                       onClick={() => setActiveTab('pipeline-list')}
-                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'pipeline-list' ? 'text-[#0066ff]' : 'text-slate-500 hover:text-[#0066ff]'}`}
+                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'pipeline-list' ? 'text-[#0066ff]' : 'text-slate-500 dark:text-slate-400 hover:text-[#0066ff]'}`}
                     >
                       전체 실행 목록
                     </button>
                     <button
-                      onClick={() => {
-                        setSelectedPipelineId(null)
-                        setActiveTab('pipeline-detail')
-                      }}
-                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'pipeline-detail' ? 'text-[#0066ff]' : 'text-slate-500 hover:text-[#0066ff]'}`}
+                      onClick={() => { setSelectedPipelineId(null); setActiveTab('pipeline-detail') }}
+                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'pipeline-detail' ? 'text-[#0066ff]' : 'text-slate-500 dark:text-slate-400 hover:text-[#0066ff]'}`}
                     >
                       실행 상세 내역
                     </button>
                     <button
                       onClick={() => setActiveTab('pipeline-stats')}
-                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'pipeline-stats' ? 'text-[#0066ff]' : 'text-slate-500 hover:text-[#0066ff]'}`}
+                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'pipeline-stats' ? 'text-[#0066ff]' : 'text-slate-500 dark:text-slate-400 hover:text-[#0066ff]'}`}
                     >
                       통계
                     </button>
@@ -278,49 +275,52 @@ return (
                 )}
               </div>
 
-          {/* MCP */}
-          <div>
-            <button
-              onClick={() => setIsMcpOpen(!isMcpOpen)}
-              className={`w-full px-4 py-3 rounded-xl text-sm font-medium flex items-center justify-between ${
-                activeTab.startsWith('mcp') ? 'bg-[#e6f0ff] text-[#0066ff]' : 'text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full ${
-                  activeTab.startsWith('mcp') ? 'bg-[#0066ff] animate-glow' : 'bg-slate-300'
-                }`} />
-                <span>MCP</span>
-              </div>
-              {isMcpOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-            </button>
-
-            {isMcpOpen && (
-              <div className="pl-4 mt-1 space-y-1">
-                <button onClick={() => setActiveTab('mcp-tools')}
-                  className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'mcp-tools' ? 'text-[#0066ff]' : 'text-slate-500 hover:text-[#0066ff]'}`}>
-                  도구 목록
-                </button>
-                <button onClick={() => setActiveTab('mcp-guide')}
-                  className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'mcp-guide' ? 'text-[#0066ff]' : 'text-slate-500 hover:text-[#0066ff]'}`}>
-                  연결 가이드
-                </button>
-              </div>
-            )}
-          </div>
-
+              {/* MCP */}
               <div>
                 <button
-                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                  onClick={() => setIsMcpOpen(!isMcpOpen)}
                   className={`w-full px-4 py-3 rounded-xl text-sm font-medium flex items-center justify-between ${
-                    activeTab.startsWith('settings') ? 'bg-[#e6f0ff] text-[#0066ff]' : 'text-slate-600 hover:bg-slate-50'
+                    activeTab.startsWith('mcp')
+                      ? 'bg-[#e6f0ff] text-[#0066ff]'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <span className={`w-1.5 h-1.5 rounded-full ${
-                      activeTab.startsWith('settings') 
-                        ? 'bg-[#0066ff] animate-glow' 
-                        : 'bg-slate-300'
+                      activeTab.startsWith('mcp') ? 'bg-[#0066ff] animate-glow' : 'bg-slate-300'
+                    }`} />
+                    <span>MCP</span>
+                  </div>
+                  {isMcpOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </button>
+
+                {isMcpOpen && (
+                  <div className="pl-4 mt-1 space-y-1">
+                    <button onClick={() => setActiveTab('mcp-tools')}
+                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'mcp-tools' ? 'text-[#0066ff]' : 'text-slate-500 dark:text-slate-400 hover:text-[#0066ff]'}`}>
+                      도구 목록
+                    </button>
+                    <button onClick={() => setActiveTab('mcp-guide')}
+                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'mcp-guide' ? 'text-[#0066ff]' : 'text-slate-500 dark:text-slate-400 hover:text-[#0066ff]'}`}>
+                      연결 가이드
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* 설정 */}
+              <div>
+                <button
+                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                  className={`w-full px-4 py-3 rounded-xl text-sm font-medium flex items-center justify-between ${
+                    activeTab.startsWith('settings')
+                      ? 'bg-[#e6f0ff] text-[#0066ff]'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      activeTab.startsWith('settings') ? 'bg-[#0066ff] animate-glow' : 'bg-slate-300'
                     }`} />
                     <span>설정</span>
                   </div>
@@ -331,13 +331,13 @@ return (
                   <div className="pl-4 mt-1 space-y-1">
                     <button
                       onClick={() => setActiveTab('settings-account')}
-                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'settings-account' ? 'text-[#0066ff]' : 'text-slate-500 hover:text-[#0066ff]'}`}
+                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'settings-account' ? 'text-[#0066ff]' : 'text-slate-500 dark:text-slate-400 hover:text-[#0066ff]'}`}
                     >
                       프로필 설정
                     </button>
-                      <button
+                    <button
                       onClick={() => setActiveTab('settings-repo')}
-                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'settings-repo' ? 'text-[#0066ff]' : 'text-slate-500 hover:text-[#0066ff]'}`}
+                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'settings-repo' ? 'text-[#0066ff]' : 'text-slate-500 dark:text-slate-400 hover:text-[#0066ff]'}`}
                     >
                       레포지토리 설정
                     </button>
@@ -346,13 +346,15 @@ return (
               </div>
             </nav>
 
-            {/* 관리자 전용 메뉴 (currentUser.role이 'ADMIN'일 때만 노출) */}
+            {/* 관리자 전용 메뉴 */}
             {currentUser?.role === 'ADMIN' && (
               <div className="px-4 pb-2 shrink-0">
                 <button
                   onClick={() => setIsAdminOpen(!isAdminOpen)}
                   className={`w-full px-4 py-3 rounded-xl text-sm font-medium flex items-center justify-between ${
-                    activeTab.startsWith('admin') ? 'bg-rose-50 text-rose-600' : 'text-slate-600 hover:bg-slate-50'
+                    activeTab.startsWith('admin')
+                      ? 'bg-rose-50 text-rose-600'
+                      : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700'
                   }`}
                 >
                   <div className="flex items-center gap-2">
@@ -368,13 +370,13 @@ return (
                   <div className="pl-4 mt-1 space-y-1">
                     <button
                       onClick={() => setActiveTab('admin-dashboard')}
-                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'admin-dashboard' ? 'text-rose-600' : 'text-slate-500 hover:text-rose-600'}`}
+                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'admin-dashboard' ? 'text-rose-600' : 'text-slate-500 dark:text-slate-400 hover:text-rose-600'}`}
                     >
                       대시보드
                     </button>
                     <button
                       onClick={() => setActiveTab('admin-logs')}
-                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'admin-logs' ? 'text-rose-600' : 'text-slate-500 hover:text-rose-600'}`}
+                      className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'admin-logs' ? 'text-rose-600' : 'text-slate-500 dark:text-slate-400 hover:text-rose-600'}`}
                     >
                       행위 이력 조회
                     </button>
@@ -383,14 +385,14 @@ return (
               </div>
             )}
 
-            {/* 계정 영역 - 고정 */}
-            <div className="p-4 border-t border-[#f1f5f9] space-y-3 bg-slate-50/40 shrink-0">
+            {/* 계정 영역 */}
+            <div className="p-4 border-t border-[#f1f5f9] dark:border-slate-700 space-y-3 bg-slate-50/40 dark:bg-slate-800/40 shrink-0">
               <div className="session-timer-dock flex items-center justify-between rounded-xl px-2 py-1 text-[11px]">
                 <div className="flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500"></span>
-                  <span className="text-slate-600 font-semibold tracking-tight">세션 유지 중</span>
+                  <span className="text-slate-600 dark:text-slate-400 font-semibold tracking-tight">세션 유지 중</span>
                 </div>
-                <span className="font-mono text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded-md text-xs font-bold tracking-wider">
+                <span className="font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded-md text-xs font-bold tracking-wider">
                   {formatTime(timeLeft)}
                 </span>
               </div>
@@ -401,13 +403,13 @@ return (
                     {userInitial}
                   </div>
                   <div className="flex flex-col min-w-0 text-left">
-                    <span className="text-sm font-bold text-[#0f172a] truncate">{currentUser?.username}</span>
+                    <span className="text-sm font-bold text-[#0f172a] dark:text-white truncate">{currentUser?.username}</span>
                     <span className="text-xs font-medium text-slate-400 truncate max-w-[125px]">{currentUser?.email}</span>
                   </div>
                 </div>
                 <button
                   onClick={handleSystemLogout}
-                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white border border-transparent hover:border-slate-100 rounded-lg shadow-none hover:shadow-sm transition-all flex items-center justify-center cursor-pointer"
+                  className="p-2 text-slate-400 hover:text-rose-500 hover:bg-white dark:hover:bg-slate-700 border border-transparent hover:border-slate-100 dark:hover:border-slate-600 rounded-lg shadow-none hover:shadow-sm transition-all flex items-center justify-center cursor-pointer"
                   title="로그아웃"
                 >
                   <LogOut size={18} />
@@ -424,8 +426,6 @@ return (
                 <h2 className="text-xl font-bold text-slate-900">시스템 점검 중</h2>
                 <p className="text-slate-500 mt-2">현재 관리자에 의해 점검 모드가 활성화되었습니다.</p>
                 <p className="text-slate-500 mt-2">잠시 후 이용 바랍니다.</p>
-
-                {/* 관리자만 닫기 버튼 보임 */}
                 {currentUser?.role === 'ADMIN' && (
                   <button
                     onClick={() => setMaintenanceMode(false)}
@@ -440,8 +440,14 @@ return (
 
           {/* 메인 컨텐츠 */}
           <main className="flex-1 overflow-y-auto px-10 py-10 min-h-screen">
-            {activeTab === 'dashboard' && <Dashboard pipelines={pipelines} stats={stats} onSelectPipeline={handleSelectPipeline} />}
-            {activeTab === 'pipeline-list' && <PipelineList pipelines={pipelines} onSelectPipeline={handleSelectPipeline} />}
+            {activeTab === 'dashboard' && <Dashboard
+              pipelines={pipelines}
+              stats={stats}
+              onSelectPipeline={handleSelectPipeline}
+              darkMode={darkMode}
+              onToggleDark={() => setDarkMode(!darkMode)}
+            />}
+            {activeTab === 'pipeline-list' && <PipelineList onSelectPipeline={handleSelectPipeline} />}
             {activeTab === 'pipeline-detail' && (
               currentPipeline
                 ? <PipelineDetail
@@ -449,24 +455,19 @@ return (
                     allPipelines={pipelines}
                     onSelectPipeline={(id) => setSelectedPipelineId(id)}
                     onBack={() => setActiveTab('pipeline-list')}
-                  />  
+                  />
                 : <div className="flex items-center justify-center h-96 text-sm text-slate-400">파이프라인을 선택해주세요.</div>
             )}
             {activeTab === 'pipeline-stats' && <PipelineStats />}
 
-            
-            {/* 커넥터 */}
             {activeTab === 'connector' && <MCPHub isActive mode="connectors" />}
 
-            {/* MCP */}
             {activeTab === 'mcp-tools' && <MCPTools />}
             {activeTab === 'mcp-guide' && <MCPGuide />}
 
-            {/* 설정 */}
             {activeTab === 'settings-account' && <AccountSettings onLogout={() => setIsLoggedIn(false)} />}
             {activeTab === 'settings-repo' && <RepositorySettings />}
 
-            {/* 관리자 */}
             {currentUser.role === 'ADMIN' && (
               <>
                 {activeTab === 'admin-dashboard' && (
