@@ -35,18 +35,6 @@ services:
     networks:
       - codeai-net
 
-  frontend:
-    build:
-      context: ./codeai-frontend
-      args:
-        - VITE_API_URL=
-    ports:
-      - "3000:80"
-    depends_on:
-      - api
-    networks:
-      - codeai-net
-
   playwright-server:
     build:
       context: ./playwright-server
