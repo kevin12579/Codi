@@ -1,29 +1,19 @@
 import { useState, useEffect } from 'react';
 import { GitFork, CheckCircle2, Activity, XCircle, ArrowUp } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { formatDate } from "../lib/formatDate"; // 공통 라이브러리 사용 (지시서 준수)
 
+    // 💡 지시서 외에 필요한 소요 시간 포맷 함수만 안전하게 선언
     const formatDuration = (seconds) => {
-    if (!seconds) return '-';
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}분 ${s}초`;
+        if (!seconds) return "0s";
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        
+        if (h > 0) return `${h}h ${m}m ${s}s`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
     };
-
-    const formatDate = (isoString) => {
-    if (!isoString) return '-';
-    const date = new Date(isoString);
-    const kstDate = new Date(date.getTime() + 32400000);
-    return kstDate.toLocaleString('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
-    };
-
-
 
     export default function Dashboard({ pipelines = [], stats = null, onSelectPipeline, darkMode, onToggleDark }) {
     const isLoading = pipelines.length === 0 && stats === null;

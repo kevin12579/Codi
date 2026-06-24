@@ -74,7 +74,7 @@ function Login({ onLoginSuccess, onNavigateToRegister }) {
                 email,
                 loginTime: Date.now(),
                 // 여기에 권한 정보를 추가합니다.
-                role: email === "admin@codi.com" ? "ADMIN" : "USER",
+                role: authData.role || "USER",
             };
             localStorage.setItem("currentUser", JSON.stringify(sessionUser));
 

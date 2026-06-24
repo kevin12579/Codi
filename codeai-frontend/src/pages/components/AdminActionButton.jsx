@@ -1,4 +1,4 @@
-import { useAuth } from '../auth/AuthContext'
+import { useAuth } from '../../auth/AuthContext'
 
 const normalizeRole = (value) => String(value || 'USER').trim().toUpperCase()
 
