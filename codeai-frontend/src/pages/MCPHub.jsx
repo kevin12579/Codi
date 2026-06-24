@@ -244,10 +244,12 @@ export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false
     const [filter, setFilter] = useState('all')
     const [servers, setServers] = useState(() => loadInitialServers(storageKeys))
     const [selectedServerId, setSelectedServerId] = useState('')
-    const [slackEnabled, setSlackEnabled] = useState(true)
-    const [discordEnabled, setDiscordEnabled] = useState(false)
-    const [slackWebhook, setSlackWebhook] = useState('https://hooks.slack.com/services/T000/B000/xxxx')
-    const [discordWebhook, setDiscordWebhook] = useState('https://discord.com/api/webhooks/xxxx')
+
+    const [slackEnabled, setSlackEnabled] = useState(true);
+    const [discordEnabled, setDiscordEnabled] = useState(false);
+    const [slackWebhook, setSlackWebhook] = useState(""); // 빈 문자열로 변경
+    const [discordWebhook, setDiscordWebhook] = useState("");
+
     const [testMessage, setTestMessage] = useState('')
     const [serverActionMessage, setServerActionMessage] = useState('')
     const [adminSyncMessage, setAdminSyncMessage] = useState('')
@@ -266,6 +268,8 @@ export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false
     const [apiKeyInput, setApiKeyInput] = useState('')
     const [aiEngineLoading, setAiEngineLoading] = useState(false)
     const [aiEngineMessage, setAiEngineMessage] = useState(null)
+
+    
 
     const handleSwitchEngine = async () => {
     if (!activeEngine || !apiKeyInput.trim()) return
@@ -354,7 +358,7 @@ export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false
                     )
                 }
 
-                const rawTools = Array.isArray(toolsResult?.data) ? toolsResult.data : []
+                const rawTools = Array.isArray(toolsResult?.data?.tools) ? toolsResult.data.tools : [];
                 if (rawTools.length > 0) {
                     setRemoteMcpTools(
                         rawTools.map((tool, index) => ({
@@ -557,43 +561,65 @@ export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false
         })
     }, [remoteMcpTools, selectedServer])
 
-    const runChannelTest = async (channel) => {
-        if (channel === 'Slack' && !slackEnabled) {
-            setTestMessage('Slack 채널이 OFF 상태입니다. 먼저 활성화해 주세요.')
-            return
-        }
+    // 💡 1. 설정 저장 함수 (PUT /api/connectors/notify)
+        const handleSaveNotification = async () => {
+            try {
+                const token = localStorage.getItem('token'); // 프로젝트 환경에 맞게 토큰 Key 수정
+                
+                const response = await fetch('/api/connectors/notify', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        activeProviders: slackEnabled ? ["slack"] : [],
+                        config: {
+                            slack: {
+                                webhookUrl: slackWebhook
+                            }
+                        }
+                    })
+                });
 
-        if (channel === 'Discord' && !discordEnabled) {
-            setTestMessage('Discord 채널이 OFF 상태입니다. 먼저 활성화해 주세요.')
-            return
-        }
+                const result = await response.json();
+                if (result.success) {
+                    alert('알림 설정이 성공적으로 저장되었습니다.');
+                } else {
+                    alert('저장에 실패했습니다.');
+                }
+            } catch (error) {
+                console.error('알림 저장 오류:', error);
+                alert('서버와 통신 중 오류가 발생했습니다.');
+            }
+        };
 
-        if (channel === 'Slack' && !slackWebhook.trim()) {
-            setTestMessage('Slack Webhook URL을 입력해 주세요.')
-            return
-        }
+        const runChannelTest = async () => {
+            try {
+                const token = localStorage.getItem('token');
+                
+                const response = await fetch('/api/connectors/notify/test', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
 
-        if (channel === 'Discord' && !discordWebhook.trim()) {
-            setTestMessage('Discord Webhook URL을 입력해 주세요.')
-            return
-        }
-
-        if (!apiEnabled) {
-            const sentTime = new Date().toLocaleTimeString('ko-KR', { hour12: false })
-            setTestMessage(`${channel} 연결 테스트 성공 (${sentTime})`)
-            return
-        }
-
-        try {
-            const result = await testConnectorCategory('notify')
-            const sent = result?.data?.sent
-            const sentAt = result?.data?.sentAt
-            const sentTime = sentAt ? ` (${new Date(sentAt).toLocaleTimeString('ko-KR', { hour12: false })})` : ''
-            setTestMessage(sent ? `${channel} 연결 테스트 성공${sentTime}` : `${channel} 연결 테스트 응답 수신${sentTime}`)
-        } catch (error) {
-            setTestMessage(getApiErrorMessage(error, `${channel} 연결 테스트 실패`))
-        }
-    }
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.success) {
+                        alert('테스트 메시지가 성공적으로 발송되었습니다.');
+                    }
+                } else if (response.status === 502) {
+                    alert('테스트 실패: Webhook URL이 설정되지 않았거나 올바르지 않습니다.');
+                } else {
+                    alert('테스트 중 오류가 발생했습니다.');
+                }
+            } catch (error) {
+                console.error('테스트 오류:', error);
+                alert('테스트 통신 중 오류가 발생했습니다.');
+            }
+        };
 
     const handleManualRefresh = useCallback(() => {
         setAdminSyncResult(null)
@@ -738,7 +764,14 @@ export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false
         <section className="space-y-6">
             <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-black tracking-tight text-slate-900">{connectorOnlyMode ? '커넥터 허브' : 'MCP 서버 허브'}</h1>
+                    {/* flex와 items-center를 추가하여 아이콘과 텍스트를 수평으로 정렬 */}
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xl">✦</span>
+                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-tighter text-slate-900 dark:text-white">
+                            {connectorOnlyMode ? '커넥터 허브' : 'MCP 서버 허브'}
+                        </h1>
+                    </div>
+                    
                     <p className="mt-1 text-sm text-slate-500">{connectorOnlyMode ? '플러그인 상태와 연결 설정을 한 곳에서 관리합니다.' : '연결 상태, 도구 수, 최근 상태를 한 곳에서 관리합니다.'}</p>
                     <p className="mt-1 text-xs text-slate-400">
                         마지막 갱신: {lastUpdatedAt ? lastUpdatedAt.toLocaleTimeString('ko-KR') : '-'} · 변경 감지 {lastChangeCount}건
@@ -1058,22 +1091,23 @@ export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false
                             className={`w-full rounded-lg border px-3 py-2 text-xs ${discordEnabled ? 'border-rose-200 bg-white' : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'}`}
                             placeholder="Discord Webhook URL"
                         />
-                        <div className="grid grid-cols-2 gap-2 pt-1">
-                            <button
-                                className={`rounded-lg border px-3 py-2 text-xs font-semibold ${slackEnabled ? 'border-rose-200 bg-white' : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'}`}
-                                onClick={() => runChannelTest('Slack')}
-                                disabled={!slackEnabled}
+
+                        {/* 💡 여기에 저장 및 연결 테스트 버튼이 들어갑니다 */}
+                        <div className="flex gap-2 pt-2">
+                            <button 
+                                onClick={handleSaveNotification}
+                                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg text-xs font-semibold hover:bg-blue-700 transition-colors"
                             >
-                                Slack 테스트
+                                저장
                             </button>
-                            <button
-                                className={`rounded-lg border px-3 py-2 text-xs font-semibold ${discordEnabled ? 'border-rose-200 bg-white' : 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'}`}
-                                onClick={() => runChannelTest('Discord')}
-                                disabled={!discordEnabled}
+                            <button 
+                                onClick={runChannelTest}
+                                className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg text-xs font-semibold hover:bg-gray-700 transition-colors"
                             >
-                                Discord 테스트
+                                연결 테스트
                             </button>
                         </div>
+
                         {testMessage && <p className="text-xs text-slate-500">{testMessage}</p>}
                     </div>
                 </div>

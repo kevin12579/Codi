@@ -3,9 +3,13 @@ import apiClient from '../api/client'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 
     const formatDate = (dateStr) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' })
-    }
+        if (!dateStr) return "-";
+        return new Date(dateStr).toLocaleDateString("ko-KR", {
+            month: "short",
+            day: "numeric",
+            timeZone: "Asia/Seoul", // 이 부분 추가
+        });
+    };
 
     export default function PipelineStats() {
     const [stats, setStats] = useState(null)
