@@ -4,6 +4,7 @@ import com.codeai.application.connector.AiEngineException
 import com.codeai.application.connector.ConnectorNotSupportedException
 import com.codeai.application.connector.ConnectorTestFailedException
 import com.codeai.application.connector.EmailAlreadyExistsException
+import com.codeai.application.connector.InvalidPasswordException
 import com.codeai.application.connector.NotifyNotConfiguredException
 import com.codeai.application.connector.PipelineNotFoundException
 import com.codeai.application.connector.SlackWebhookException
@@ -46,6 +47,11 @@ class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.CONFLICT)
     fun handleEmailAlreadyExists(e: EmailAlreadyExistsException): ApiResponse<Nothing> =
         ApiResponse.fail("AUTH_EMAIL_ALREADY_EXISTS", e.message ?: "이미 사용 중인 이메일입니다.")
+
+    @ExceptionHandler(InvalidPasswordException::class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    fun handleInvalidPassword(e: InvalidPasswordException): ApiResponse<Nothing> =
+        ApiResponse.fail("AUTH_004", e.message ?: "현재 비밀번호가 올바르지 않습니다.")
 
     @ExceptionHandler(PipelineNotFoundException::class)
     @ResponseStatus(HttpStatus.NOT_FOUND)

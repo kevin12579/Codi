@@ -20,3 +20,6 @@ class PipelineNotFoundException(id: Long) : RuntimeException("파이프라인을
 
 /** Slack 웹훅 전송 실패 → 502 SLACK_WEBHOOK_ERROR */
 class SlackWebhookException(message: String) : RuntimeException(message)
+
+/** 현재 비밀번호 불일치 → 400 AUTH_004 */
+class InvalidPasswordException : RuntimeException("현재 비밀번호가 올바르지 않습니다.")
