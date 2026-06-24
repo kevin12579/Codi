@@ -3,6 +3,7 @@ import { getConnectorsOverview, testConnectorCategory } from '../api/connectors'
 import { getMcpTools, getRepositories } from '../api/mcp'
 import { getApiErrorMessage, isApiEnabled } from '../api/client'
 import { appendAdminAuditLog } from '../api/adminAudit'
+import { getAuthToken } from "../api/authStorage";
 
 const getStorageScope = (mode) => {
     if (mode === 'connectors') return 'connectors'
@@ -564,7 +565,7 @@ export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false
     // 💡 1. 설정 저장 함수 (PUT /api/connectors/notify)
         const handleSaveNotification = async () => {
             try {
-                const token = localStorage.getItem('token'); // 프로젝트 환경에 맞게 토큰 Key 수정
+                const token = getAuthToken(); 
                 
                 const response = await fetch('/api/connectors/notify', {
                     method: 'PUT',
@@ -596,7 +597,7 @@ export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false
 
         const runChannelTest = async () => {
             try {
-                const token = localStorage.getItem('token');
+                const token = getAuthToken();
                 
                 const response = await fetch('/api/connectors/notify/test', {
                     method: 'POST',
