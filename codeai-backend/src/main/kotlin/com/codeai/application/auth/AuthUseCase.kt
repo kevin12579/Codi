@@ -1,6 +1,7 @@
 package com.codeai.application.auth
 
 import com.codeai.application.connector.EmailAlreadyExistsException
+import com.codeai.application.connector.InvalidPasswordException
 import com.codeai.domain.admin.UserActivityLog
 import com.codeai.domain.admin.UserActivityLogRepository
 import com.codeai.domain.user.User
@@ -24,7 +25,7 @@ class AuthUseCase(
             User(email = email, password = passwordEncoder.encode(password), name = name)
         )
         val token = jwtProvider.generate(user.id, user.email, user.role)
-        return AuthResult(token = token, userId = user.id, email = user.email, name = user.name, createdAt = user.createdAt)
+        return AuthResult(token = token, userId = user.id, email = user.email, name = user.name, role = user.role.name, createdAt = user.createdAt)
     }
 
     suspend fun login(email: String, password: String): AuthResult {
@@ -45,7 +46,13 @@ class AuthUseCase(
                 UserActivityLog(userId = user.id, email = user.email, action = "로그인", result = "성공")
             )
         }
-        return AuthResult(token = token, userId = user.id, email = user.email, name = user.name)
+        return AuthResult(token = token, userId = user.id, email = user.email, name = user.name, role = user.role.name)
+    }
+
+    suspend fun changePassword(userId: Long, currentPassword: String, newPassword: String) {
+        val user = userRepository.findById(userId) ?: throw NoSuchElementException("사용자를 찾을 수 없습니다.")
+        if (!passwordEncoder.matches(currentPassword, user.password)) throw InvalidPasswordException()
+        userRepository.save(user.copy(password = passwordEncoder.encode(newPassword)))
     }
 }
 
@@ -54,5 +61,6 @@ data class AuthResult(
     val userId: Long,
     val email: String,
     val name: String,
+    val role: String,
     val createdAt: java.time.LocalDateTime? = null
 )

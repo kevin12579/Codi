@@ -35,8 +35,18 @@ services:
     networks:
       - codeai-net
 
-  # Playwright 전용 실행 컨테이너 (Node.js) — 백엔드가 HTTP(:3001/run)로 호출 (P3, 종합설계 §7)
-  # NOTE: frontend 서비스는 이 compose 에 아직 없음(프론트팀 산출물). 통합 시 depends_on: frontend 추가.
+  frontend:
+    build:
+      context: ./codeai-frontend
+      args:
+        - VITE_API_URL=
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    networks:
+      - codeai-net
+
   playwright-server:
     build:
       context: ./playwright-server
