@@ -45,8 +45,18 @@ export default function PipelineList({ onSelectPipeline }) {
     // 레포 목록 (필터 드롭다운용)
     useEffect(() => {
         const savedToken = localStorage.getItem('authToken')
-        fetch('/api/repositories', {
-            headers: { Authorization: `Bearer ${savedToken}` },
+        
+        // 🔥 환경변수 주소 조립 및 정제
+        const apiUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
+        const cleanUrl = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+        const finalBaseUrl = apiUrl ? cleanUrl : '/api';
+
+        // 🔥 주소 변경 및 헤더 추가
+        fetch(`${finalBaseUrl}/repositories`, {
+            headers: { 
+                Authorization: `Bearer ${savedToken}`,
+                'ngrok-skip-browser-warning': 'true' // ngrok 경고 패스 헤더 추가
+            },
         })
             .then((res) => res.json())
             .then((json) => {
@@ -93,8 +103,17 @@ export default function PipelineList({ onSelectPipeline }) {
         if (dateFrom) params.append('from', new Date(dateFrom).toISOString())
         if (dateTo) params.append('to', new Date(dateTo + 'T23:59:59').toISOString())
 
-        fetch(`/api/pipelines?${params}`, {
-            headers: { Authorization: `Bearer ${savedToken}` },
+        // 🔥 환경변수 주소 조립 및 정제
+        const apiUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
+        const cleanUrl = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+        const finalBaseUrl = apiUrl ? cleanUrl : '/api';
+
+        // 🔥 주소 변경 및 헤더 추가
+        fetch(`${finalBaseUrl}/pipelines?${params}`, {
+            headers: { 
+                Authorization: `Bearer ${savedToken}`,
+                'ngrok-skip-browser-warning': 'true' // ngrok 경고 패스 헤더 추가
+            },
         })
             .then((res) => res.json())
             .then((json) => {

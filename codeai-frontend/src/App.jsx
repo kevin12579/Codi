@@ -87,18 +87,35 @@ export default function App() {
 
     const authHeader = `Bearer ${savedToken}`;
 
+    // 🔥 환경변수 주소 조립 및 정제
+    const apiUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
+    const cleanUrl = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+    
+    // 환경변수 주소가 없으면 기존처럼 로컬 프록시용 '/api'로 사용합니다.
+    const finalBaseUrl = apiUrl ? cleanUrl : '/api';
+
     const fetchAll = () => {
-      fetch('/api/pipelines/stats', {
+      // 1. Stats 요청 주소 변경
+      fetch(`${finalBaseUrl}/pipelines/stats`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader }
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': authHeader,
+          'ngrok-skip-browser-warning': 'true' // 🔥 ngrok 경고 우회 헤더 추가
+        }
       })
       .then(res => { if (!res.ok) throw new Error('Stats 응답 에러'); return res.json(); })
       .then(data => { if (data.success) setStats(data.data); })
       .catch(err => console.error('stats fetch 실패:', err));
 
-      fetch('/api/pipelines', {
+      // 2. Pipelines 요청 주소 변경
+      fetch(`${finalBaseUrl}/pipelines`, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json', 'Authorization': authHeader }
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': authHeader,
+          'ngrok-skip-browser-warning': 'true' // 🔥 ngrok 경고 우회 헤더 추가
+        }
       })
       .then(res => { if (!res.ok) throw new Error('Pipelines 응답 에러'); return res.json(); })
       .then(json => {
