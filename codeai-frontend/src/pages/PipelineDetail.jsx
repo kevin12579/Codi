@@ -19,10 +19,18 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
     const fetchDetail = async () => {
       try {
         const savedToken = localStorage.getItem("authToken")
-        const response = await fetch(`/api/pipelines/${pipeline.id}`, {
+        
+        // 🔥 환경변수 주소 조립 및 정제
+        const apiUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
+        const cleanUrl = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
+        const finalBaseUrl = apiUrl ? cleanUrl : '/api';
+
+        // 🔥 finalBaseUrl을 사용하도록 주소 변경 및 ngrok 경고 패스 헤더 추가
+        const response = await fetch(`${finalBaseUrl}/pipelines/${pipeline.id}`, {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${savedToken}`
+            'Authorization': `Bearer ${savedToken}`,
+            'ngrok-skip-browser-warning': 'true' // ngrok 경고 패스 헤더 추가
           }
         })
         const result = await response.json()
