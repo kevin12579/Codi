@@ -1,5 +1,6 @@
     import { useState, useEffect } from 'react'
     import apiClient from '../../api/client'
+    import { formatDate } from '../../lib/formatDate'
 
     const ACTION_FILTERS = ['전체', '로그인', '파이프라인 실행', '설정 변경']
     const RESULT_FILTERS = ['전체', '성공', '실패']
@@ -136,7 +137,9 @@
                 ) : (
                     filtered.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-700/40 transition-colors">
-                        <td className="px-5 py-3.5 text-xs text-slate-400 dark:text-slate-500 font-mono">{log.date}</td>
+                        <td className="px-5 py-3.5 text-xs text-slate-400 dark:text-slate-500 font-mono">
+                        {formatDate(log.date)}
+                        </td>  
                         <td className="px-5 py-3.5 text-slate-700 dark:text-slate-200 font-medium">{log.email}</td>
                         <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{log.action}</td>
                         <td className="px-5 py-3.5">
