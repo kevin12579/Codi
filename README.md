@@ -26,6 +26,7 @@ Codi는 PR 한 번으로 코드리뷰 · 테스트 · 배포를 자동화하는 
 - **Slack 알림** — 리뷰 완료 · 테스트 결과 · 배포 성공을 단계별로 발송
 - **MCP 서버** — Claude Desktop · Cursor에서 직접 도구 호출 가능
 - **런타임 엔진 교체** — 재배포 없이 대시보드에서 AI 엔진 / 알림 채널 / 배포 제공자를 즉시 전환
+- **관리자 패널** — ADMIN 계정으로 시스템 통계 · 시간별 파이프라인 추이 · 사용자 행위 이력 모니터링
 
 ---
 
@@ -68,21 +69,7 @@ GitHub PR 오픈
 cp .env.example .env
 ```
 
-`.env`에서 필수 항목 입력:
-
-```env
-WEBHOOK_SECRET=your_github_webhook_secret
-JWT_SECRET=your_jwt_secret_256bit
-AES_SECRET_KEY=your_32byte_hex_key
-
-# AI 엔진 (1개 이상)
-CLAUDE_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-
-# 알림 / VCS
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-GITHUB_TOKEN=ghp_...
-```
+전체 변수 목록은 [Environment Variables](#environment-variables) 참고.
 
 ### 2. 실행
 
@@ -111,6 +98,21 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`
 
 ## Environment Variables
 
+```env
+WEBHOOK_SECRET=your_github_webhook_secret
+JWT_SECRET=your_jwt_secret_256bit
+AES_SECRET_KEY=your_32byte_hex_key
+
+# AI 엔진 (1개 이상)
+CLAUDE_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+GEMINI_API_KEY=AIza...
+
+# 알림 / VCS
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+GITHUB_TOKEN=ghp_...
+```
+
 | 변수                 | 필수 | 설명                                             |
 | -------------------- | ---- | ------------------------------------------------ |
 | `WEBHOOK_SECRET`     | ✅   | GitHub Webhook HMAC 서명 키                      |
@@ -121,6 +123,7 @@ Swagger UI: `http://localhost:8080/swagger-ui.html`
 | `OPENAI_API_KEY`     | —    | OpenAI API 키                                    |
 | `OPENAI_MODEL`       | —    | 기본값: `gpt-4o-mini`                            |
 | `GEMINI_API_KEY`     | —    | Google Gemini API 키                             |
+| `GEMINI_MODEL`       | —    | 기본값: `gemini-2.0-flash`                       |
 | `SLACK_WEBHOOK_URL`  | —    | Slack Incoming Webhook URL                       |
 | `GITHUB_TOKEN`       | —    | PR 댓글 작성용 토큰                              |
 | `PLAYWRIGHT_ENABLED` | —    | `true` 시 실제 E2E 테스트 실행 (기본값: `false`) |
@@ -190,6 +193,18 @@ Claude Desktop · Cursor에서 Codi의 도구를 직접 호출할 수 있다.
 ```
 
 사용 가능한 도구: `get_pr_diff` · `post_review_comment` · `run_e2e_tests` · `trigger_deploy` · `send_notification` · `mask_secrets`
+
+---
+
+## Admin Panel
+
+`ADMIN` 역할 전용. 일반 `USER` 계정은 접근 불가.
+
+| 기능 | 엔드포인트 | 설명 |
+| ---- | ---------- | ---- |
+| 시스템 통계 | `GET /api/admin/stats` | 총 사용자 수 · 이달 신규 · 활성 파이프라인 · 최근 24h 에러 |
+| 시간별 파이프라인 | `GET /api/admin/pipeline-hourly` | 오늘 시간대별 실행 수 (0~23시) |
+| 행위 이력 | `GET /api/admin/user-logs` | 로그인 · 파이프라인 실행 · 설정 변경 이력 자동 기록 |
 
 ---
 
