@@ -4,6 +4,7 @@ import com.codeai.domain.review.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.springframework.stereotype.Repository
+import java.time.LocalDateTime
 
 @Repository
 class CodeReviewRepositoryImpl(
@@ -34,5 +35,10 @@ class CodeReviewRepositoryImpl(
     override suspend fun countByEngine(): Map<String, Long> =
         withContext(Dispatchers.IO) {
             reviewJpa.countByEngine().associate { row -> (row[0] as String) to (row[1] as Long) }
+        }
+
+    override suspend fun countByEngineSince(since: LocalDateTime): Map<String, Long> =
+        withContext(Dispatchers.IO) {
+            reviewJpa.countByEngineSince(since).associate { row -> (row[0] as String) to (row[1] as Long) }
         }
 }
