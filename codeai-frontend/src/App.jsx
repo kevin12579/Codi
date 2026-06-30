@@ -57,6 +57,7 @@ export default function App() {
   };
 
   const [pipelines, setPipelines] = useState([]);
+  const [totalPipelineCount, setTotalPipelineCount] = useState(0); // ✅ 추가: 전체 누적 파이프라인 수
 
   useEffect(() => {
     const user = localStorage.getItem("currentUser");
@@ -122,6 +123,7 @@ export default function App() {
         if (json.success) {
           const list = json.data.content || json.data;
           setPipelines(list);
+          setTotalPipelineCount(json.data.totalElements ?? list.length); // ✅ 추가: 전체 누적 수 반영
           const hasRunning = list.some(p => p.status?.toUpperCase() === 'RUNNING');
           if (!hasRunning && intervalRef.current) {
             clearInterval(intervalRef.current);
@@ -460,6 +462,7 @@ export default function App() {
               {activeTab === 'dashboard' && <Dashboard
                 pipelines={pipelines}
                 stats={stats}
+                totalPipelineCount={totalPipelineCount}
                 onSelectPipeline={handleSelectPipeline}
                 darkMode={darkMode}
                 onToggleDark={() => setDarkMode(!darkMode)}

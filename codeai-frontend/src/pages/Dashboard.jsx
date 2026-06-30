@@ -15,11 +15,11 @@ import { formatDate } from "../lib/formatDate"; // 공통 라이브러리 사용
         return `${s}s`;
     };
 
-    export default function Dashboard({ pipelines = [], stats = null, onSelectPipeline, darkMode, onToggleDark }) {
+    export default function Dashboard({ pipelines = [], stats = null, totalPipelineCount = 0, onSelectPipeline, darkMode, onToggleDark }) {
     const isLoading = pipelines.length === 0 && stats === null;
     const safePipelines = Array.isArray(pipelines) ? pipelines : [];
 
-    const totalCount = stats?.totalExecutions ?? 0;
+    const totalCount = totalPipelineCount;
     const successRate = stats?.successRate ?? 0;
     const failedCount = stats?.failedCount ?? 0;
     const inProgressCount = stats?.inProgressCount ?? 0;
