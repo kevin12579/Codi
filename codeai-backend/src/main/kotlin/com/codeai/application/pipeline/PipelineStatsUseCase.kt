@@ -7,6 +7,7 @@ import com.codeai.infrastructure.cache.PipelineCacheService
 import com.codeai.presentation.pipeline.DailyStat
 import com.codeai.presentation.pipeline.PipelineStatsResponse
 import org.springframework.stereotype.Service
+import java.time.LocalDateTime
 import kotlin.math.roundToInt
 
 @Service
@@ -19,6 +20,7 @@ class PipelineStatsUseCase(
         val key = PipelineCacheService.statsKey(repositoryId, period)
         return cache.getOrLoad(key, PipelineStatsResponse::class.java) {
             val days = when (period) { "30d" -> 30; "90d" -> 90; else -> 7 }
+            val since = LocalDateTime.now().minusDays(days.toLong())
 
             val completed = pipelineRepository.findCompletedSince(days, repositoryId)
             val successCount = completed.count { it.status == PipelineStatus.SUCCESS }.toLong()
@@ -47,7 +49,7 @@ class PipelineStatsUseCase(
                 failedCount = failedCount,
                 successRate = successRate,
                 avgDurationSeconds = avgDuration,
-                engineBreakdown = reviewRepository.countByEngine(),
+                engineBreakdown = reviewRepository.countByEngineSince(since),
                 period = period,
                 dailyStats = dailyStats
             )
