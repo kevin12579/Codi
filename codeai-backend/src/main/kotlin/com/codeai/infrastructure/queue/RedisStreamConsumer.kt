@@ -1,6 +1,6 @@
 package com.codeai.infrastructure.queue
 
-import com.codeai.application.deploy.DeployUseCase
+import com.codeai.application.notification.NotifyUseCase
 import com.codeai.application.review.ReviewUseCase
 import com.codeai.application.testrun.TestRunUseCase
 import com.codeai.domain.pipeline.PipelineRepository
@@ -25,7 +25,7 @@ class RedisStreamConsumer(
     private val redisTemplate: ReactiveRedisTemplate<String, String>,
     private val reviewUseCase: ReviewUseCase,
     private val testRunUseCase: TestRunUseCase,
-    private val deployUseCase: DeployUseCase,
+    private val notifyUseCase: NotifyUseCase,
     private val pipelineRepository: PipelineRepository,
     private val cache: PipelineCacheService,
 ) {
@@ -45,7 +45,6 @@ class RedisStreamConsumer(
                 val repoFullName = data["repoFullName"] ?: ""
                 val prNumber = data["prNumber"]?.toInt() ?: 0
                 val headSha = data["headSha"] ?: ""
-                val headRef = data["headRef"] ?: ""
                 val prUrl = data["prUrl"] ?: ""
                 val prTitle = data["prTitle"] ?: ""
 
@@ -76,19 +75,19 @@ class RedisStreamConsumer(
                             testOk = testJob.await().status == TestRunStatus.PASSED
                         }
 
-                        // 리뷰 + 테스트 두 결과를 종합해 파이프라인 최종 status 결정
+                        // v0.9(D10): 리뷰+테스트 종합 → 적격이면 자동 배포 대신 DEPLOY_CANDIDATE 로 표시(ADMIN 승인 대기)
+                        val eligible = reviewOk && testOk
                         pipelineRepository.findById(pipelineExecutionId)?.let { execution ->
-                            val finalExecution = if (reviewOk && testOk) execution.complete() else execution.fail()
+                            val finalExecution = if (eligible) execution.markDeployCandidate() else execution.fail()
                             pipelineRepository.save(finalExecution)
                             cache.evict(PipelineCacheService.detailKey(pipelineExecutionId))
                             cache.evictByPattern("pipeline:list:*")
                         }
 
-                        deployUseCase.triggerIfEligible(
-                            pipelineExecutionId = pipelineExecutionId,
-                            repoFullName = repoFullName,
-                            ref = headRef.ifBlank { headSha }
-                        )
+                        // 배포 후보면 Slack 으로 승인 요청 알림 (실제 배포는 ADMIN 승인 후 DeployUseCase.approveAndDeploy)
+                        if (eligible) {
+                            notifyUseCase.notifyDeployCandidate(pipelineExecutionId, prTitle, repoFullName)
+                        }
 
                         ackMessage(record)
                         log.info("Pipeline 처리 완료: executionId=$pipelineExecutionId")

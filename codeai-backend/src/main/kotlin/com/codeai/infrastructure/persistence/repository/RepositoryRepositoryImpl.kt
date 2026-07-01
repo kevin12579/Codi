@@ -11,6 +11,11 @@ class RepositoryRepositoryImpl(
     private val jpa: RepositoryJpaRepository
 ) : RepositoryRepository {
 
+    override suspend fun findById(id: Long): Repository? =
+        withContext(Dispatchers.IO) {
+            jpa.findById(id).orElse(null)?.toDomain()
+        }
+
     override suspend fun findByGithubRepoId(githubRepoId: Long): Repository? =
         withContext(Dispatchers.IO) {
             jpa.findByGithubRepoId(githubRepoId).orElse(null)?.toDomain()

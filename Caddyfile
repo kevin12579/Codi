@@ -1,0 +1,31 @@
+# Caddyfile — TLS 리버스 프록시 진입점 (v0.9 §5-5-1, D12 · V1-B 도전)
+# 로컬/데모: localhost + 로컬 CA(tls internal) 로 자동 HTTPS.
+# 운영: 아래 localhost 를 도메인(codi.example.com)으로 바꾸면 자동 Let's Encrypt.
+#
+# 현재 compose 에는 frontend 서비스가 없어 전부 api:8080(Spring WebFlux)로 프록시한다.
+# 프론트엔드 컨테이너를 추가하면 운영 예시(맨 아래)처럼 path 별 handle 로 분리한다.
+
+localhost {
+    tls internal
+    encode gzip
+
+    # 보안 헤더(미들웨어 일부 — 풀세트는 V1.x)
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+    }
+
+    reverse_proxy api:8080
+}
+
+# 운영 예시(도메인 + 자동 HTTPS + 프론트 분리):
+# codi.example.com {
+#     encode gzip
+#     header {
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains"
+#     }
+#     @backend path /api/* /webhook/* /sse* /mcp* /actuator/*
+#     reverse_proxy @backend api:8080
+#     reverse_proxy frontend:80
+# }

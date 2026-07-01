@@ -1,6 +1,23 @@
 import { useState, useEffect } from 'react'
-import { ArrowLeft, GitFork, User, Calendar, Clock, CheckCircle2, XCircle, Bell, Copy, Check, Terminal, AlertTriangle, ShieldCheck, Activity } from 'lucide-react'
+import { ArrowLeft, GitFork, User, Calendar, Clock, CheckCircle2, XCircle, Bell, Copy, Check, Terminal, AlertTriangle, ShieldCheck, Activity, Rocket } from 'lucide-react'
 import { formatDate } from '../lib/formatDate'
+
+// 환경변수 기반 API base URL 조립 (이 파일의 기존 fetch 패턴과 동일)
+const resolveApiBaseUrl = () => {
+  const apiUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim()
+  const cleanUrl = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`
+  return apiUrl ? cleanUrl : '/api'
+}
+
+const isAdminUser = () => {
+  try {
+    const raw = localStorage.getItem('currentUser')
+    if (!raw) return false
+    return String(JSON.parse(raw)?.role || 'USER').toUpperCase() === 'ADMIN'
+  } catch {
+    return false
+  }
+}
 
 
 const formatDuration = (seconds) => {
@@ -14,6 +31,40 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
   const [activeTab, setActiveTab] = useState('review')
   const [copiedId, setCopiedId] = useState(null)
   const [detail, setDetail] = useState(null)
+  const [currentStatus, setCurrentStatus] = useState(pipeline.status)
+  const [deploying, setDeploying] = useState(false)
+  const [deployMsg, setDeployMsg] = useState(null)
+
+  useEffect(() => { setCurrentStatus(pipeline.status) }, [pipeline.status])
+
+  // v0.9(D10): 배포 후보 승인 → POST /api/pipelines/{id}/deploy (ADMIN)
+  const approveDeploy = async () => {
+    if (deploying) return
+    setDeploying(true)
+    setDeployMsg(null)
+    try {
+      const token = localStorage.getItem('authToken')
+      const res = await fetch(`${resolveApiBaseUrl()}/pipelines/${pipeline.id}/deploy`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'ngrok-skip-browser-warning': 'true',
+        },
+      })
+      const result = await res.json().catch(() => ({}))
+      if (res.ok && result?.success) {
+        setCurrentStatus('SUCCESS')
+        setDeployMsg({ ok: true, text: result.message || '배포를 트리거했습니다.' })
+      } else {
+        setDeployMsg({ ok: false, text: result?.error?.message || '배포 승인에 실패했습니다.' })
+      }
+    } catch (err) {
+      setDeployMsg({ ok: false, text: '배포 승인 요청 중 오류가 발생했습니다.' })
+    } finally {
+      setDeploying(false)
+    }
+  }
 
   useEffect(() => {
     const fetchDetail = async () => {
@@ -52,6 +103,7 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
     const s = status?.toUpperCase()
     if (s === 'SUCCESS') return 'bg-emerald-50 text-emerald-600 border border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800'
     if (s === 'FAILED') return 'bg-rose-50 text-rose-600 border border-rose-100 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800'
+    if (s === 'DEPLOY_CANDIDATE') return 'bg-indigo-50 text-indigo-600 border border-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-400 dark:border-indigo-800'
     return 'bg-blue-50 text-blue-600 border border-blue-100 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800'
   }
 
@@ -88,8 +140,8 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
             <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white leading-snug">
               {pipeline.prTitle || '제목 없음'}
             </h2>
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold tracking-wide ${statusClass(pipeline.status)}`}>
-              {pipeline.status}
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-extrabold tracking-wide ${statusClass(currentStatus)}`}>
+              {currentStatus}
             </span>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold pl-0.5">
@@ -97,6 +149,38 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
             <span className="text-slate-700 dark:text-slate-300 font-mono">{pipeline.repositoryFullName || '레포지토리 정보 없음'}</span>
           </div>
         </div>
+
+        {/* v0.9(D10): 배포 후보 → ADMIN 승인 게이트 */}
+        {currentStatus?.toUpperCase() === 'DEPLOY_CANDIDATE' && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-indigo-50/70 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-2xl px-5 py-4">
+            <div className="flex items-start gap-2.5">
+              <Rocket size={18} className="text-indigo-500 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-sm font-black text-indigo-700 dark:text-indigo-300">배포 후보 — 관리자 승인 대기</p>
+                <p className="text-xs text-indigo-600/80 dark:text-indigo-400/80 font-semibold mt-0.5">
+                  HIGH 0건·테스트 통과로 배포 조건을 충족했습니다. 승인 시 GitHub Actions 배포가 트리거됩니다.
+                </p>
+              </div>
+            </div>
+            {isAdminUser() ? (
+              <button
+                onClick={approveDeploy}
+                disabled={deploying}
+                className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-black transition-all cursor-pointer"
+              >
+                <Rocket size={15} /> {deploying ? '승인 처리 중…' : '배포 승인'}
+              </button>
+            ) : (
+              <span className="shrink-0 text-xs font-bold text-indigo-400">관리자(ADMIN)만 승인할 수 있습니다</span>
+            )}
+          </div>
+        )}
+
+        {deployMsg && (
+          <div className={`text-xs font-bold px-4 py-2.5 rounded-xl border ${deployMsg.ok ? 'bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' : 'bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800'}`}>
+            {deployMsg.text}
+          </div>
+        )}
 
         {/* 메타 정보 그리드 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">

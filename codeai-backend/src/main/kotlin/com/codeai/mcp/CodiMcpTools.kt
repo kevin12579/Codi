@@ -1,8 +1,11 @@
 package com.codeai.mcp
 
+import com.codeai.application.audit.AuditService
+import com.codeai.domain.audit.AuditAction
 import com.codeai.infrastructure.ai.MaskingUtil
 import com.codeai.infrastructure.persistence.settings.SettingsStore
 import com.codeai.plugin.registry.ProviderRegistry
+import com.codeai.plugin.spi.DeployRequest
 import kotlinx.coroutines.runBlocking
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.ai.tool.annotation.ToolParam
@@ -21,6 +24,7 @@ import org.springframework.stereotype.Component
 class CodiMcpTools(
     private val registry: ProviderRegistry,
     private val settings: SettingsStore,
+    private val auditService: AuditService,
 ) {
 
     @Tool(description = "PR diff를 가져옵니다. 민감정보(API 키·비밀번호)는 자동 마스킹됩니다.")
@@ -69,7 +73,15 @@ class CodiMcpTools(
         require(highCount == 0 && testsPassed) {
             "배포 조건 미충족 (highCount=$highCount, testsPassed=$testsPassed)"
         }
-        val triggered = registry.activeDeployer().deploy(repoFullName, ref, mapOf("source" to "mcp"))
+        val triggered = registry.activeDeployer().deploy(
+            DeployRequest(repoFullName, ref, mapOf("source" to "mcp"))
+        ).triggered
+        // v0.9(D11): MCP 도구로 트리거된 배포도 감사 기록 (actor=null=시스템/외부 MCP)
+        auditService.record(
+            action = AuditAction.MCP_TOOL_CALL,
+            target = "tool:trigger_deploy",
+            detail = "repo=$repoFullName, ref=$ref, triggered=$triggered"
+        )
         mapOf("triggered" to triggered)
     }
 
