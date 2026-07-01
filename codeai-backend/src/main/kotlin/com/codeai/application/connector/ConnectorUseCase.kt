@@ -133,7 +133,28 @@ class ConnectorUseCase(
             .map { it.first }.toSet()
 
     private suspend fun availableOf(category: String): List<ConnectorProviderDto> =
-        catalog.getValue(category).map { (id, name) -> ConnectorProviderDto(id, name, configuredOf(category, id)) }
+        catalog.getValue(category).map { (id, name) ->
+            val configured = configuredOf(category, id)
+            ConnectorProviderDto(id, name, configured, if (configured) keyHintOf(category, id) else null)
+        }
+
+    /** 설정된 키/URL을 복호화해 마스킹 힌트(앞 4자 + 점) 생성. URL은 도메인까지 노출. */
+    private suspend fun keyHintOf(category: String, providerId: String): String? {
+        val raw = when {
+            category == "ai" && providerId == "claude" -> claudeKey.takeIf { it.isNotBlank() && it != "placeholder" }
+            category == "ai" -> connectorConfig.getApiKey("ai", providerId)
+            category == "notify" -> settings.get("$providerId.webhook.url")
+            else -> null
+        }?.takeIf { it.isNotBlank() } ?: return null
+
+        return if (category == "notify") {
+            // URL: 앞 28자 정도 + 점 (도메인 식별 가능)
+            if (raw.length <= 28) raw else raw.take(28) + "···"
+        } else {
+            // 키: 앞 4자 + 점
+            raw.take(4) + "········"
+        }
+    }
 
     private suspend fun activeOf(category: String): String = when (category) {
         "ai" -> settings.get(ProviderRegistry.KEY_AI_ENGINE) ?: ProviderRegistry.DEFAULT_AI

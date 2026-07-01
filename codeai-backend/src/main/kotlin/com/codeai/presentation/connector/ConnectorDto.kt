@@ -11,6 +11,8 @@ data class ConnectorProviderDto(
     val id: String,
     val name: String,
     val configured: Boolean,
+    /** 설정된 키/URL의 마스킹 힌트(앞 4자 + 점). 미설정이면 null. */
+    val keyHint: String? = null,
 )
 
 /** GET /api/connectors 의 각 카테고리 값. */

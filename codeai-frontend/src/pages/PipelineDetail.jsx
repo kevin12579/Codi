@@ -67,30 +67,30 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
   }
 
   useEffect(() => {
+    let active = true
     const fetchDetail = async () => {
       try {
         const savedToken = localStorage.getItem("authToken")
-        
-        // 🔥 환경변수 주소 조립 및 정제
-        const apiUrl = (import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim();
-        const cleanUrl = apiUrl.endsWith('/api') ? apiUrl : `${apiUrl}/api`;
-        const finalBaseUrl = apiUrl ? cleanUrl : '/api';
-
-        // 🔥 finalBaseUrl을 사용하도록 주소 변경 및 ngrok 경고 패스 헤더 추가
-        const response = await fetch(`${finalBaseUrl}/pipelines/${pipeline.id}`, {
+        const response = await fetch(`${resolveApiBaseUrl()}/pipelines/${pipeline.id}`, {
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${savedToken}`,
-            'ngrok-skip-browser-warning': 'true' // ngrok 경고 패스 헤더 추가
+            'ngrok-skip-browser-warning': 'true'
           }
         })
         const result = await response.json()
+        if (!active) return
         setDetail(result.data)
+        // 서버의 실제 상태로 동기화(목록의 stale prop 대신) — 승인 버튼 재활성화 버그 방지
+        if (result?.data?.status) setCurrentStatus(result.data.status)
       } catch (err) {
-        console.error("상세 조회 실패:", err)
+        if (active) console.error("상세 조회 실패:", err)
       }
     }
     fetchDetail()
+    // 진행 중 파이프라인 실시간 반영(RUNNING→후보/SUCCESS) — 5초 폴링
+    const iv = setInterval(fetchDetail, 5000)
+    return () => { active = false; clearInterval(iv) }
   }, [pipeline.id])
 
   const copyToClipboard = (text, id) => {
