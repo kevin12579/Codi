@@ -10,8 +10,8 @@ class RepositoryEntity(
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
-    @Column(name = "github_repo_id", nullable = false, unique = true)
-    val githubRepoId: Long,
+    @Column(name = "github_repo_id", unique = true)
+    val githubRepoId: Long? = null,
 
     @Column(nullable = false)
     val owner: String,
@@ -37,6 +37,9 @@ class RepositoryEntity(
     @Column(name = "is_active", nullable = false)
     val isActive: Boolean = true,
 
+    @Column(name = "connect_mode", nullable = false)
+    val connectMode: String = "MANUAL",
+
     @Column(name = "created_at", nullable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
 
@@ -47,7 +50,7 @@ class RepositoryEntity(
         id = id, githubRepoId = githubRepoId, owner = owner,
         name = name, fullName = fullName, webhookSecret = webhookSecret,
         vcsId = vcsId, url = url, defaultBranch = defaultBranch,
-        isActive = isActive, createdAt = createdAt
+        isActive = isActive, connectMode = connectMode, createdAt = createdAt
     )
 
     companion object {
@@ -55,7 +58,7 @@ class RepositoryEntity(
             id = d.id, githubRepoId = d.githubRepoId, owner = d.owner,
             name = d.name, fullName = d.fullName, webhookSecret = d.webhookSecret,
             vcsId = d.vcsId, url = d.url, defaultBranch = d.defaultBranch,
-            isActive = d.isActive, createdAt = d.createdAt
+            isActive = d.isActive, connectMode = d.connectMode, createdAt = d.createdAt
         )
     }
 }

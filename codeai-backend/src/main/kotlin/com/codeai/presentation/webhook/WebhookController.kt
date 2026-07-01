@@ -1,8 +1,10 @@
 package com.codeai.presentation.webhook
 
 import com.codeai.application.webhook.WebhookProcessUseCase
+import com.codeai.application.webhook.WebhookResult
 import com.codeai.presentation.common.ApiResponse
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 
@@ -45,12 +47,17 @@ class WebhookController(
             )
         }
 
-        val executionId = webhookProcessUseCase.process(payload)
-        return ResponseEntity.ok(
-            ApiResponse.ok(
-                mapOf<String, Any>("pipelineExecutionId" to executionId),
-                "이벤트 수신 완료"
+        return when (val result = webhookProcessUseCase.process(payload)) {
+            is WebhookResult.Accepted -> ResponseEntity.ok(
+                ApiResponse.ok(
+                    mapOf<String, Any>("pipelineExecutionId" to result.pipelineExecutionId),
+                    "이벤트 수신 완료"
+                )
             )
-        )
+            // 보안 게이트(§4-3-1): 미등록/비활성 레포 → 202 Accepted 후 무시(파이프라인 미생성)
+            is WebhookResult.Ignored -> ResponseEntity.status(HttpStatus.ACCEPTED).body(
+                ApiResponse.ok(mapOf<String, Any>("message" to "ignored"), result.reason)
+            )
+        }
     }
 }
