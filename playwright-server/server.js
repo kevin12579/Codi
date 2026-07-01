@@ -14,7 +14,8 @@ app.post('/run', (req, res) => {
   const { targetUrl = process.env.BASE_URL || 'http://frontend:80' } = req.body || {};
   try {
     execSync('npx playwright test --reporter=json', {
-      env: { ...process.env, BASE_URL: targetUrl },
+      // PLAYWRIGHT_JSON_OUTPUT_NAME 로 json 리포트를 파일로 강제(미지정 시 stdout 으로만 나감).
+      env: { ...process.env, BASE_URL: targetUrl, PLAYWRIGHT_JSON_OUTPUT_NAME: '/app/test-results.json' },
       cwd: '/app',
       timeout: 300000, // 5분
       stdio: 'pipe',
