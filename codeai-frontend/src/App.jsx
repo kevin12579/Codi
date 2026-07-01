@@ -18,7 +18,8 @@ import PipelineStats from './pages/PipelineStats'
 import CodiLogo from './LOGO1.png';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
-import AdminUserLogs from './pages/admin/AdminUserLogs'; 
+import AdminUserLogs from './pages/admin/AdminUserLogs';
+import AdminAuditLogs from './pages/admin/AdminAuditLogs';
 import { AuthProvider } from "./auth/AuthContext";
 
 export default function App() {
@@ -399,6 +400,12 @@ export default function App() {
                       >
                         행위 이력 조회
                       </button>
+                      <button
+                        onClick={() => setActiveTab('admin-audit')}
+                        className={`w-full px-4 py-2 text-xs font-medium text-left ${activeTab === 'admin-audit' ? 'text-rose-600' : 'text-slate-500 dark:text-slate-400 hover:text-rose-600'}`}
+                      >
+                        감사 로그 (보안)
+                      </button>
                     </div>
                   )}
                 </div>
@@ -497,6 +504,7 @@ export default function App() {
                     />
                   )}
                   {activeTab === 'admin-logs' && <AdminUserLogs />}
+                  {activeTab === 'admin-audit' && <AdminAuditLogs />}
                 </>
               )}
             </main>
