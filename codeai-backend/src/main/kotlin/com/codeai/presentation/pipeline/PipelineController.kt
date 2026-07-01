@@ -1,19 +1,26 @@
 package com.codeai.presentation.pipeline
 
+import com.codeai.application.deploy.DeployApprovalOutcome
+import com.codeai.application.deploy.DeployUseCase
 import com.codeai.application.pipeline.PipelineQueryUseCase
 import com.codeai.application.pipeline.PipelineStatsUseCase
 import com.codeai.presentation.common.ApiResponse
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ServerWebExchange
 
-@Tag(name = "파이프라인", description = "PR 파이프라인 조회 / 상세 / 통계")
+@Tag(name = "파이프라인", description = "PR 파이프라인 조회 / 상세 / 통계 / 배포 승인")
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/pipelines")
 class PipelineController(
     private val pipelineQueryUseCase: PipelineQueryUseCase,
-    private val pipelineStatsUseCase: PipelineStatsUseCase
+    private val pipelineStatsUseCase: PipelineStatsUseCase,
+    private val deployUseCase: DeployUseCase
 ) {
     @GetMapping
     suspend fun getList(
@@ -43,5 +50,34 @@ class PipelineController(
     ): ApiResponse<PipelineDetailResponse> {
         val result = pipelineQueryUseCase.getDetail(id)
         return ApiResponse.ok(result)
+    }
+
+    /**
+     * 배포 후보(DEPLOY_CANDIDATE) 승인 → 배포 트리거. (v0.9 D10, ADMIN 전용 — SecurityConfig 에서 강제)
+     * 내부에서 highCount==0 && testsPassed 를 재검증하고 audit_logs(DEPLOY_APPROVE) 기록.
+     */
+    @PostMapping("/{id}/deploy")
+    suspend fun approveDeploy(
+        @PathVariable id: Long,
+        @AuthenticationPrincipal principal: Any?,
+        exchange: ServerWebExchange
+    ): ResponseEntity<ApiResponse<*>> {
+        val actorId = principal as? Long
+        val ip = exchange.request.remoteAddress?.address?.hostAddress
+        val userAgent = exchange.request.headers.getFirst("User-Agent")
+
+        val result = deployUseCase.approveAndDeploy(id, actorId, ip, userAgent)
+        val status = when (result.outcome) {
+            DeployApprovalOutcome.APPROVED -> HttpStatus.OK
+            DeployApprovalOutcome.NOT_FOUND -> HttpStatus.NOT_FOUND
+            DeployApprovalOutcome.NOT_CANDIDATE -> HttpStatus.CONFLICT
+            DeployApprovalOutcome.NOT_ELIGIBLE -> HttpStatus.UNPROCESSABLE_ENTITY
+            DeployApprovalOutcome.TRIGGER_FAILED -> HttpStatus.BAD_GATEWAY
+        }
+        val body = if (result.outcome == DeployApprovalOutcome.APPROVED)
+            ApiResponse.ok(mapOf("pipelineId" to id, "status" to "SUCCESS"), result.message)
+        else
+            ApiResponse.fail(result.outcome.name, result.message)
+        return ResponseEntity.status(status).body(body)
     }
 }
