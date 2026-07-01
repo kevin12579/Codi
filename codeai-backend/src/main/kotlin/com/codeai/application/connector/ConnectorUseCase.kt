@@ -73,7 +73,11 @@ class ConnectorUseCase(
             "ai" -> settings.set(ProviderRegistry.KEY_AI_ENGINE, active)
             "notify" -> {
                 settings.set(ProviderRegistry.KEY_NOTIFY_CHANNELS, active)
-                config[active]?.get("webhookUrl")?.let { settings.set("slack.webhook.url", it) }
+                // 채널별 webhook URL 저장 (v0.9: slack | discord). slack 은 기존 키도 미러링(하위호환).
+                config[active]?.get("webhookUrl")?.let { url ->
+                    settings.set("$active.webhook.url", url)
+                    if (active == "slack") settings.set("slack.webhook.url", url)
+                }
             }
             "test" -> settings.set(ProviderRegistry.KEY_TEST_RUNNER, active)
             "deploy" -> settings.set(ProviderRegistry.KEY_DEPLOY_PROVIDER, active)
@@ -144,7 +148,8 @@ class ConnectorUseCase(
         category == "ai" && providerId == "claude" -> claudeKey.isNotBlank() && claudeKey != "placeholder"
         category == "ai" -> connectorConfig.isConfigured("ai", providerId) // openai / gemini
         category == "notify" && providerId == "slack" -> !settings.get("slack.webhook.url").isNullOrBlank()
-        category == "notify" -> false // discord (V2)
+        category == "notify" && providerId == "discord" -> !settings.get("discord.webhook.url").isNullOrBlank() // v0.9 V1-B 도전
+        category == "notify" -> false
         else -> true // vcs / test / deploy: V1 환경설정 고정
     }
 

@@ -16,4 +16,18 @@ interface AIReviewEngine {
     /** null이면 전역 codeai.review.prompt-version 사용, 값이 있으면 엔진별 고정 버전 사용. */
     val preferredPromptVersion: String? get() = null
     suspend fun review(diff: String, promptVersion: String): ReviewResult
+
+    /**
+     * 수정 제안(Autofix) — 리뷰 코멘트 → 패치 후보 생성. (종합설계 §8-5, v0.8/0.9 D13)
+     * 결과는 '제안'일 뿐 머지·배포는 사람 승인 게이트를 거친다.
+     * V1 은 기본 구현이 null(미지원) — 실제 패치 생성은 V1.x. 미지원 엔진은 이 default 를 그대로 둔다.
+     */
+    suspend fun suggestFix(filePath: String, issue: String, codeContext: String): FixSuggestion? = null
 }
+
+/** Autofix 패치 후보 (§8-5). V1.x 에서 엔진별 실제 구현. */
+data class FixSuggestion(
+    val filePath: String,
+    val patch: String,
+    val description: String
+)
