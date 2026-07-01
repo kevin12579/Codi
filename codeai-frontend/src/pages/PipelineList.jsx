@@ -94,8 +94,8 @@ export default function PipelineList({ onSelectPipeline }) {
         setDateTo(toStr)
     }, [periodFilter])
 
-    const fetchPipelines = () => {
-        setIsLoading(true)
+    const fetchPipelines = (silent = false) => {
+        if (!silent) setIsLoading(true)
         const savedToken = localStorage.getItem('authToken')
         const params = new URLSearchParams({ page: 0, size: 20 })
         if (statusFilter) params.append('status', statusFilter)
@@ -127,6 +127,9 @@ export default function PipelineList({ onSelectPipeline }) {
 
     useEffect(() => {
         fetchPipelines()
+        // 새 파이프라인(웹훅) 실시간 반영 — 5초 폴링(스피너 없이 조용히)
+        const iv = setInterval(() => fetchPipelines(true), 5000)
+        return () => clearInterval(iv)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [statusFilter, dateFrom, dateTo, repoFilter])
 

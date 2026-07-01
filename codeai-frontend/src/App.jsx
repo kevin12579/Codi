@@ -4,13 +4,13 @@ import { ChevronDown, ChevronRight, LogOut, ShieldAlert } from 'lucide-react'
 import Dashboard from './pages/Dashboard'
 import PipelineDetail from './pages/PipelineDetail'
 import PipelineList from './pages/PipelineList'
+import ConnectorHub from './pages/ConnectorHub'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import SessionManager from './pages/SessionManager'
 import { logout } from "./api/auth";
 import AccountSettings from "./pages/settings/AccountSettings";
 
-import MCPHub from './pages/MCPHub'
 import MCPTools from './pages/mcp/MCPTools'
 import MCPGuide from './pages/mcp/MCPGuide'
 import RepositorySettings from './pages/settings/RepositorySettings'
@@ -124,12 +124,9 @@ export default function App() {
         if (json.success) {
           const list = json.data.content || json.data;
           setPipelines(list);
-          setTotalPipelineCount(json.data.totalElements ?? list.length); // ✅ 추가: 전체 누적 수 반영
-          const hasRunning = list.some(p => p.status?.toUpperCase() === 'RUNNING');
-          if (!hasRunning && intervalRef.current) {
-            clearInterval(intervalRef.current);
-            intervalRef.current = null;
-          }
+          setTotalPipelineCount(json.data.totalElements ?? list.length); // ✅ 전체 누적 수 반영
+          // 주의: 예전엔 RUNNING 없으면 폴링을 껐는데, 그러면 유휴 중 들어온 새 PR(웹훅)을
+          //       감지 못 해 새로고침 전까지 목록에 안 떴다. 로그인 동안은 계속 폴링 유지.
         }
       })
       .catch(err => console.error('pipelines fetch 실패:', err));
@@ -487,7 +484,7 @@ export default function App() {
               )}
               {activeTab === 'pipeline-stats' && <PipelineStats />}
 
-              {activeTab === 'connector' && <MCPHub isActive mode="connectors" />}
+              {activeTab === 'connector' && <ConnectorHub />}
 
               {activeTab === 'mcp-tools' && <MCPTools />}
               {activeTab === 'mcp-guide' && <MCPGuide />}
