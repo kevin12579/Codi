@@ -51,6 +51,14 @@ class SecurityConfig(
                     // MCP 엔드포인트: X-Api-Key 헤더로 별도 인증 (McpApiKeyFilter)
                     .pathMatchers("/sse", "/mcp/message").permitAll()
                     .pathMatchers("/api/admin/**").hasRole("ADMIN")
+                    // v0.9: 배포 승인은 ADMIN 전용 (D10)
+                    .pathMatchers(HttpMethod.POST, "/api/pipelines/*/deploy").hasRole("ADMIN")
+                    // v0.9: 레포 등록/토글은 ADMIN 전용 (D21). 조회(GET)는 인증 사용자 허용
+                    .pathMatchers(HttpMethod.POST, "/api/repositories").hasRole("ADMIN")
+                    .pathMatchers(HttpMethod.PATCH, "/api/repositories/*").hasRole("ADMIN")
+                    // v0.9: 감사 로그 조회 + 커넥터 변경은 ADMIN 전용 (D11/D16)
+                    .pathMatchers("/api/audit-logs").hasRole("ADMIN")
+                    .pathMatchers(HttpMethod.PUT, "/api/connectors/*").hasRole("ADMIN")
                     .anyExchange().authenticated()
             }
             .exceptionHandling { ex ->

@@ -1,6 +1,8 @@
 package com.codeai.presentation.connector
 
+import com.codeai.application.audit.AuditService
 import com.codeai.application.connector.ConnectorUseCase
+import com.codeai.domain.audit.AuditAction
 import com.codeai.presentation.common.ApiResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -17,7 +19,10 @@ import org.springframework.web.bind.annotation.*
 @SecurityRequirement(name = "bearerAuth")
 @RestController
 @RequestMapping("/api/connectors")
-class ConnectorController(private val useCase: ConnectorUseCase) {
+class ConnectorController(
+    private val useCase: ConnectorUseCase,
+    private val auditService: AuditService
+) {
 
     @Operation(summary = "전체 커넥터 상태 조회")
     @GetMapping
@@ -39,6 +44,11 @@ class ConnectorController(private val useCase: ConnectorUseCase) {
             .map { it.authentication?.details as? String ?: "system" }
             .awaitSingle()
         val result = useCase.update(category, req.activeProviders, req.config, email)
+        auditService.record(
+            action = AuditAction.CONNECTOR_UPDATE,
+            target = "connector:$category",
+            detail = "activeProviders=${req.activeProviders}"
+        )
         val message = when (category) {
             "ai" -> "AI 엔진 변경 완료 (다음 파이프라인부터 적용)"
             "notify" -> "알림 채널 변경 완료"
