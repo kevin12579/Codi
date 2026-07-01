@@ -94,7 +94,7 @@ CREATE TABLE test_runs (
     total_tests             INT            NOT NULL DEFAULT 0,
     passed                  INT            NOT NULL DEFAULT 0,
     failed                  INT            NOT NULL DEFAULT 0,
-    coverage_pct            DECIMAL(5,2),
+    coverage_pct            DOUBLE PRECISION,
     started_at              TIMESTAMP,
     completed_at            TIMESTAMP,
     created_at              TIMESTAMP      NOT NULL DEFAULT NOW()

@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* 사이드바 스크롤 안 보이게 */
+nav::-webkit-scrollbar {
+    display: none;
+}

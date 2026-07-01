@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Codi Demo Web</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 640px; margin: 60px auto; padding: 0 20px; color: #0f172a; }
+    h1 { color: #0066ff; }
+    button { background: #0066ff; color: #fff; border: 0; padding: 10px 18px; border-radius: 10px; font-weight: 700; cursor: pointer; }
+    #result { margin-top: 16px; font-weight: 700; }
+    .card { border: 1px solid #e2e8f0; border-radius: 16px; padding: 24px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 data-testid="title">Codi Demo Web</h1>
+    <p>이 페이지는 Codi 파이프라인의 <strong>E2E 테스트 대상</strong>입니다.</p>
+
+    <button id="pingBtn" data-testid="ping-btn" onclick="ping()">Ping</button>
+    <div id="result" data-testid="result">idle</div>
+
+    <ul>
+      <li data-testid="feat-review">AI 코드리뷰</li>
+      <li data-testid="feat-e2e">Playwright E2E</li>
+      <li data-testid="feat-deploy">배포 승인 게이트</li>
+    </ul>
+  </div>
+
+  <script>
+    function ping() {
+      document.getElementById('result').textContent = 'pong';
+    }
+  </script>
+</body>
+</html>
