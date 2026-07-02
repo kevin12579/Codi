@@ -267,4 +267,4 @@ Claude Desktop · Cursor에서 Codi의 도구를 직접 호출할 수 있다.
 
 ## License
 
-## [MIT](LICENSE) © 2026 Team Codi
+[MIT](LICENSE) © 2026 Team Codi
