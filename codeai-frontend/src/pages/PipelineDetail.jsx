@@ -280,54 +280,76 @@ export default function PipelineDetail({ pipeline, allPipelines, onSelectPipelin
           </div>
         )}
 
-        {/* E2E Test */}
+        {/* E2E Test — test_runs/test_cases 기반 (pipeline_steps 아님) */}
         {activeTab === 'e2e' && (
           <div className="space-y-5">
-            {detail?.steps && detail.steps.length > 0 ? (
+            {detail?.testRun ? (
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
-                <div className="bg-slate-50/80 dark:bg-slate-700/50 px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center">
+                <div className="bg-slate-50/80 dark:bg-slate-700/50 px-5 py-3.5 border-b border-slate-200 dark:border-slate-700 flex flex-wrap justify-between items-center gap-2">
                   <span className="text-xs font-black text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
                     <Activity size={14} className="text-[#0066ff]" /> Docker Headless 통합 검증 결과
                   </span>
-                  <span className="text-[10px] font-mono font-black bg-slate-200/80 dark:bg-slate-600 px-2 rounded text-slate-600 dark:text-slate-300">
-                    Playwright Engine
-                  </span>
-                  {detail?.testRun?.coveragePct != null && (
-                    <span className="text-[10px] font-mono font-black bg-emerald-100 dark:bg-emerald-900/40 px-2 rounded text-emerald-700 dark:text-emerald-400">
-                      Coverage {detail.testRun.coveragePct}%
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-mono font-black bg-slate-200/80 dark:bg-slate-600 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300">
+                      {detail.testRun.runnerId || 'playwright'}
                     </span>
-                  )}
+                    <span className="text-[10px] font-mono font-black bg-slate-200/80 dark:bg-slate-600 px-2 py-0.5 rounded text-slate-600 dark:text-slate-300">
+                      전체 {detail.testRun.totalTests}
+                    </span>
+                    <span className="text-[10px] font-mono font-black bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded text-emerald-700 dark:text-emerald-400">
+                      통과 {detail.testRun.passed}
+                    </span>
+                    <span className="text-[10px] font-mono font-black bg-rose-100 dark:bg-rose-900/40 px-2 py-0.5 rounded text-rose-700 dark:text-rose-400">
+                      실패 {detail.testRun.failed}
+                    </span>
+                    {detail.testRun.coveragePct != null && (
+                      <span className="text-[10px] font-mono font-black bg-emerald-100 dark:bg-emerald-900/40 px-2 py-0.5 rounded text-emerald-700 dark:text-emerald-400">
+                        Coverage {detail.testRun.coveragePct}%
+                      </span>
+                    )}
+                    <span className={`text-[10px] font-mono font-black px-2 py-0.5 rounded ${detail.testRun.status === 'PASSED' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}`}>
+                      {detail.testRun.status}
+                    </span>
+                  </div>
                 </div>
-                <div className="divide-y divide-slate-100 dark:divide-slate-700">
-                  {detail.steps.map((step, idx) => (
-                    <div key={idx} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/30 dark:hover:bg-slate-700/30 transition-colors">
-                      <div className="space-y-1 max-w-2xl">
-                        <p className="text-sm font-black text-slate-800 dark:text-slate-200">{step.stepType}</p>
-                        {step.errorMessage && (
-                          <pre className="text-[11px] font-mono text-rose-600 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 rounded-xl border border-rose-100 dark:border-rose-800 mt-2 overflow-x-auto leading-relaxed shadow-inner max-w-full">
-                            {step.errorMessage}
-                          </pre>
-                        )}
+                {detail.testRun.cases && detail.testRun.cases.length > 0 ? (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                    {detail.testRun.cases.map((tc, idx) => (
+                      <div key={idx} className="px-5 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50/30 dark:hover:bg-slate-700/30 transition-colors">
+                        <div className="space-y-1 max-w-2xl">
+                          <p className="text-sm font-black text-slate-800 dark:text-slate-200">{tc.testName}</p>
+                          {tc.errorMessage && (
+                            <pre className="text-[11px] font-mono text-rose-600 bg-rose-50 dark:bg-rose-900/20 px-4 py-3 rounded-xl border border-rose-100 dark:border-rose-800 mt-2 overflow-x-auto leading-relaxed shadow-inner max-w-full">
+                              {tc.errorMessage}
+                            </pre>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
+                          <span className="font-mono text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 dark:text-slate-400 px-2 py-0.5 rounded">
+                            {tc.durationMs != null ? `${tc.durationMs}ms` : '-'}
+                          </span>
+                          {tc.status?.toUpperCase() === 'PASSED' ? (
+                            <span className="flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400 px-2.5 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                              <CheckCircle2 size={13} /> PASSED
+                            </span>
+                          ) : tc.status?.toUpperCase() === 'SKIPPED' ? (
+                            <span className="flex items-center gap-1 text-xs font-black text-slate-500 bg-slate-100 dark:bg-slate-700 dark:text-slate-400 px-2.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-600">
+                              <Terminal size={13} /> SKIPPED
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400 px-2.5 py-0.5 rounded-lg border border-rose-200 dark:border-rose-800">
+                              <XCircle size={13} /> FAILED
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                        <span className="font-mono text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-700 dark:text-slate-400 px-2 py-0.5 rounded">{formatDuration(step.durationSeconds)}</span>
-                        {step.status?.toUpperCase() === 'SUCCESS' ? (
-                          <span className="flex items-center gap-1 text-xs font-black text-emerald-700 bg-emerald-50 dark:bg-emerald-900/30 dark:text-emerald-400 px-2.5 py-0.5 rounded-lg border border-emerald-200 dark:border-emerald-800">
-                            <CheckCircle2 size={13} /> SUCCESS
-                          </span>
-                        ) : step.status?.toUpperCase() === 'SKIPPED' ? (
-                          <span className="flex items-center gap-1 text-xs font-black text-slate-500 bg-slate-100 dark:bg-slate-700 dark:text-slate-400 px-2.5 py-0.5 rounded-lg border border-slate-200 dark:border-slate-600">
-                            <Terminal size={13} /> SKIPPED
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-xs font-black text-rose-700 bg-rose-50 dark:bg-rose-900/30 dark:text-rose-400 px-2.5 py-0.5 rounded-lg border border-rose-200 dark:border-rose-800">
-                            <XCircle size={13} /> FAILED
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-5 py-4 text-xs text-slate-400 dark:text-slate-500">
+                    집계 결과는 수신됐으나 개별 테스트 케이스 상세가 없습니다.
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-12 text-center shadow-sm">

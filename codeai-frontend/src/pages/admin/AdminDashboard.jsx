@@ -26,11 +26,13 @@ export default function AdminDashboard({ maintenanceMode, onToggleMaintenance })
     const [stats, setStats] = useState(null)
     const [hourlyData, setHourlyData] = useState([])
     const [loading, setLoading] = useState(true)
+    const [error, setError] = useState(null)
 
     useEffect(() => {
         const fetchData = async () => {
             try {
                 setLoading(true)
+                setError(null)
                 const [statsRes, hourlyRes] = await Promise.all([
                     apiClient.get('/admin/stats'),
                     apiClient.get('/admin/pipeline-hourly'),
@@ -38,19 +40,11 @@ export default function AdminDashboard({ maintenanceMode, onToggleMaintenance })
                 setStats(statsRes.data.data)
                 setHourlyData(hourlyRes.data.data)
             } catch (err) {
+                // 실패 시 가짜 통계를 보여주면 관리자가 오해한다 → 실제 실패 상태를 노출.
                 console.error(err)
-                setStats({
-                    totalUsers: 24,
-                    monthlyNewUsers: 6,
-                    activePipelines: 3,
-                    recentErrors: 2,
-                })
-                setHourlyData(
-                    Array.from({ length: 24 }, (_, i) => ({
-                        time: `${String(i).padStart(2, '0')}:00`,
-                        count: Math.floor(Math.random() * 15 + 1),
-                    }))
-                )
+                setError('통계를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+                setStats(null)
+                setHourlyData([])
             } finally {
                 setLoading(false)
             }
@@ -131,6 +125,14 @@ export default function AdminDashboard({ maintenanceMode, onToggleMaintenance })
             {/* 로딩 */}
             {loading && (
                 <p className="text-sm text-slate-400 dark:text-slate-500">데이터를 불러오는 중...</p>
+            )}
+
+            {/* 에러 (가짜 통계 대신 실패 상태 노출) */}
+            {!loading && error && (
+                <div className="rounded-xl bg-rose-50 dark:bg-rose-950 border border-rose-200 dark:border-rose-800 px-5 py-3.5 flex items-center gap-3 text-sm text-rose-700 dark:text-rose-400 font-medium">
+                    <AlertTriangle size={16} className="shrink-0" />
+                    {error}
+                </div>
             )}
 
             {/* 스탯 카드 */}

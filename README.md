@@ -16,6 +16,18 @@ GitHub PR이 열리면 AI 코드리뷰 + E2E 테스트를 자동 실행하고,
 
 ---
 
+<p align="center">
+  <b>📅 개발 기간:</b> 2026.06.08 ~ 2026.07.09
+  <br/><br/>
+  <a href="https://github.com/kevin12579/Codi/blob/main/docs/intro.pdf" target="_blank">
+    <img src="https://img.shields.io/badge/PDF%20Presentation-프로젝트%20소개%20PPT%20보기-blue?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Codi PPT"/>
+  </a>
+  <br/>
+  <sup>💡 버튼을 클릭하시면 프로젝트 <b>PDF 소개서</b>로 이동합니다.</sup>
+</p>
+
+---
+
 ## What is Codi?
 
 Codi는 PR 한 번으로 코드리뷰 · 테스트 · 배포를 자동화하는 오픈소스 플랫폼이다.
@@ -240,6 +252,16 @@ Claude Desktop · Cursor에서 Codi의 도구를 직접 호출할 수 있다.
 
 > 최초 관리자: 회원가입 후 DB에서 승격 —  
 > `UPDATE users SET role='ADMIN' WHERE email='<your-email>';`
+
+---
+
+## 팀원 및 역할
+
+| 이름              | 역할                                          | 상세 수행 업무 및 기술 스택                                                                                                                                                       |
+| :---------------- | :-------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **박성훈** (팀장) | 아키텍처 · 백엔드 · DevOps                    | Kotlin, Spring Boot, DDD로 백엔드 전 구간을 단독 설계 및 구현. Claude MCP, Redis Stream, GitHub Actions CD 연동 <br>🏷️ _Kotlin, WebFlux, DDD, MCP, Redis Stream_                  |
+| **강미현** (팀원) | 대시보드 · 파이프라인 · 어드민 기능 구현 · QA | React 기반 대시보드 개발 및 파이프라인 이력/상세/통계/관리자 화면 구현. Vercel 배포 및 API 연동·안정화. UI/UX 최적화 및 QA 담당 <br>🏷️ _대시보드, 파이프라인, 어드민, Vercel, QA_ |
+| **신창희** (팀원) | 기획 · UI/UX · 발표                           | React 대시보드 개발. 파이프라인 이력·상세·알림 화면. UI/UX 디자인·발표 자료·품질 검증 담당 <br>🏷️ _React, UI/UX, 발표, 문서_                                                      |
 
 ---
 
