@@ -12,6 +12,7 @@ import com.codeai.domain.review.CodeReviewRepository
 import com.codeai.domain.review.ReviewStatus
 import com.codeai.domain.testrun.TestRunRepository
 import com.codeai.domain.testrun.TestRunStatus
+import com.codeai.infrastructure.cache.PipelineCacheService
 import com.codeai.plugin.registry.ProviderRegistry
 import com.codeai.plugin.spi.DeployRequest
 import org.slf4j.LoggerFactory
@@ -35,6 +36,7 @@ class DeployUseCase(
     private val pipelineRepository: PipelineRepository,
     private val repositoryRepository: RepositoryRepository,
     private val auditService: AuditService,
+    private val cache: PipelineCacheService,
 ) {
     private val log = LoggerFactory.getLogger(this::class.java)
 
@@ -97,6 +99,9 @@ class DeployUseCase(
 
         if (triggered) {
             pipelineRepository.save(execution.complete())  // DEPLOY_CANDIDATE → SUCCESS
+            // 승인으로 상태가 바뀌었으니 상세/목록 캐시를 즉시 무효화(안 하면 60s TTL 동안 목록이 옛 상태로 남음)
+            cache.evict(PipelineCacheService.detailKey(pipelineExecutionId))
+            cache.evictByPattern("pipeline:list:*")
             auditService.record(
                 action = AuditAction.DEPLOY_APPROVE,
                 target = "pipeline:$pipelineExecutionId",
