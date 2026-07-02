@@ -5,6 +5,7 @@ import com.codeai.domain.pipeline.PipelineExecution
 import com.codeai.domain.pipeline.PipelineStep
 import com.codeai.domain.review.CodeReview
 import com.codeai.domain.review.ReviewComment
+import com.codeai.domain.testrun.TestCase
 import com.codeai.domain.testrun.TestRun
 import java.time.Duration
 import java.time.LocalDateTime
@@ -121,13 +122,29 @@ data class TestRunSummary(
     val totalTests: Int,
     val passed: Int,
     val failed: Int,
-    val coveragePct: Double?
+    val coveragePct: Double?,
+    val cases: List<TestCaseSummary> = emptyList()
 ) {
     companion object {
-        fun from(t: TestRun) = TestRunSummary(
+        fun from(t: TestRun, cases: List<TestCase>) = TestRunSummary(
             runnerId = t.runnerId,
             status = t.status.name, totalTests = t.totalTests,
-            passed = t.passed, failed = t.failed, coveragePct = t.coveragePct
+            passed = t.passed, failed = t.failed, coveragePct = t.coveragePct,
+            cases = cases.map { TestCaseSummary.from(it) }
+        )
+    }
+}
+
+data class TestCaseSummary(
+    val testName: String,
+    val status: String,
+    val durationMs: Int?,
+    val errorMessage: String?
+) {
+    companion object {
+        fun from(c: TestCase) = TestCaseSummary(
+            testName = c.testName, status = c.status.name,
+            durationMs = c.durationMs, errorMessage = c.errorMessage
         )
     }
 }

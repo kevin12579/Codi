@@ -32,4 +32,10 @@ interface PipelineExecutionJpaRepository : JpaRepository<PipelineExecutionEntity
         from: LocalDateTime,
         to: LocalDateTime
     ): List<PipelineExecutionEntity>
+
+    /** 특정 상태(PENDING/RUNNING)로 오래 멈춘 고아 파이프라인 회수용. */
+    fun findByStatusInAndCreatedAtBefore(
+        statuses: List<PipelineStatus>,
+        cutoff: LocalDateTime
+    ): List<PipelineExecutionEntity>
 }

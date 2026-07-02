@@ -1,10 +1,10 @@
 package com.codeai.infrastructure.queue
 
+import com.codeai.application.deploy.DeployUseCase
 import com.codeai.application.notification.NotifyUseCase
 import com.codeai.application.review.ReviewUseCase
 import com.codeai.application.testrun.TestRunUseCase
 import com.codeai.domain.pipeline.PipelineRepository
-import com.codeai.domain.testrun.TestRunStatus
 import com.codeai.infrastructure.cache.PipelineCacheService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +26,7 @@ class RedisStreamConsumer(
     private val reviewUseCase: ReviewUseCase,
     private val testRunUseCase: TestRunUseCase,
     private val notifyUseCase: NotifyUseCase,
+    private val deployUseCase: DeployUseCase,
     private val pipelineRepository: PipelineRepository,
     private val cache: PipelineCacheService,
 ) {
@@ -52,8 +53,7 @@ class RedisStreamConsumer(
                     try {
                         log.info("Pipeline 처리 시작: executionId=$pipelineExecutionId")
 
-                        val reviewOk: Boolean
-                        val testOk: Boolean
+                        // 리뷰·테스트를 병렬 실행하고 둘 다 완료(DB 영속)될 때까지 대기.
                         coroutineScope {
                             val reviewJob = async {
                                 reviewUseCase.execute(
@@ -71,12 +71,14 @@ class RedisStreamConsumer(
                                     headSha = headSha
                                 )
                             }
-                            reviewOk = reviewJob.await()
-                            testOk = testJob.await().status == TestRunStatus.PASSED
+                            reviewJob.await()
+                            testJob.await()
                         }
 
-                        // v0.9(D10): 리뷰+테스트 종합 → 적격이면 자동 배포 대신 DEPLOY_CANDIDATE 로 표시(ADMIN 승인 대기)
-                        val eligible = reviewOk && testOk
+                        // v0.9(D10): 후보 판정 기준을 승인 게이트와 '단일 소스'로 통일한다.
+                        // (과거 버그: "리뷰가 에러 없이 끝남"으로만 판정 → HIGH>0 인데도 후보가 됐음)
+                        // isEligible = 리뷰 COMPLETED && highCount==0 && 테스트 PASSED — DeployUseCase 와 동일 규칙.
+                        val eligible = deployUseCase.isEligible(pipelineExecutionId)
                         pipelineRepository.findById(pipelineExecutionId)?.let { execution ->
                             val finalExecution = if (eligible) execution.markDeployCandidate() else execution.fail()
                             pipelineRepository.save(finalExecution)

@@ -81,4 +81,9 @@ class PipelineRepositoryImpl(
                 listOf(PipelineStatus.PENDING, PipelineStatus.RUNNING)
             )?.toDomain()
         }
+
+    override suspend fun findStale(statuses: List<PipelineStatus>, cutoff: LocalDateTime): List<PipelineExecution> =
+        withContext(Dispatchers.IO) {
+            jpa.findByStatusInAndCreatedAtBefore(statuses, cutoff).map { it.toDomain() }
+        }
 }

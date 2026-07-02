@@ -47,6 +47,7 @@ class PipelineQueryUseCase(
             val review = reviewRepository.findByPipelineExecutionId(id)
             val comments = review?.let { reviewRepository.findCommentsByReviewId(it.id) } ?: emptyList()
             val testRun = testRunRepository.findByPipelineExecutionId(id)
+            val testCases = testRun?.let { testRunRepository.findTestCasesByRunId(it.id) } ?: emptyList()
             val notifications = notificationRepository.findByPipelineExecutionId(id)
 
             PipelineDetailResponse(
@@ -60,7 +61,7 @@ class PipelineQueryUseCase(
                 completedAt = execution.completedAt,
                 steps = steps.map { StepSummary.from(it) },
                 review = review?.let { ReviewSummary.from(it, comments) },
-                testRun = testRun?.let { TestRunSummary.from(it) },
+                testRun = testRun?.let { TestRunSummary.from(it, testCases) },
                 notifications = notifications.map { NotificationSummary.from(it) }
             )
         }
