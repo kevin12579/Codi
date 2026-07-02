@@ -17,14 +17,15 @@ GitHub PR이 열리면 AI 코드리뷰 + E2E 테스트를 자동 실행하고,
 ---
 
 <p align="center">
-  **개발 기간:** 2026.06.08 ~ 2026.7.09
+  <b>📅 개발 기간:</b> 2026.06.08 ~ 2026.07.09
+  <br/><br/>
   <a href="https://github.com/kevin12579/Codi/blob/main/docs/intro.pdf" target="_blank">
     <img src="https://img.shields.io/badge/PDF%20Presentation-프로젝트%20소개%20PPT%20보기-blue?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Codi PPT"/>
   </a>
   <br/>
   <sup>💡 버튼을 클릭하시면 프로젝트 <b>PDF 소개서</b>로 이동합니다.</sup>
 </p>
-
+**개발 기간:** 2026.06.08 ~ 2026.7.09
 ---
 
 ## What is Codi?
