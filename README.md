@@ -263,6 +263,8 @@ Claude Desktop · Cursor에서 Codi의 도구를 직접 호출할 수 있다.
 | **강미현** (팀원) | 대시보드 · 파이프라인 · 어드민 기능 구현 · QA | React 기반 대시보드 개발 및 파이프라인 이력/상세/통계/관리자 화면 구현. Vercel 배포 및 API 연동·안정화. UI/UX 최적화 및 QA 담당 <br>🏷️ _대시보드, 파이프라인, 어드민, Vercel, QA_ |
 | **신창희** (팀원) | 기획 · UI/UX · 발표                           | React 대시보드 개발. 파이프라인 이력·상세·알림 화면. UI/UX 디자인·발표 자료·품질 검증 담당 <br>🏷️ _React, UI/UX, 발표, 문서_                                                      |
 
+---
+
 ## License
 
 ## [MIT](LICENSE) © 2026 Team Codi
