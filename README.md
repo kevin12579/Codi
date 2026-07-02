@@ -17,14 +17,15 @@ GitHub PR이 열리면 AI 코드리뷰 + E2E 테스트를 자동 실행하고,
 ---
 
 <p align="center">
-  **개발 기간:** 2026.06.08 ~ 2026.7.09
+  <b>📅 개발 기간:</b> 2026.06.08 ~ 2026.07.09
+  <br/><br/>
   <a href="https://github.com/kevin12579/Codi/blob/main/docs/intro.pdf" target="_blank">
     <img src="https://img.shields.io/badge/PDF%20Presentation-프로젝트%20소개%20PPT%20보기-blue?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Codi PPT"/>
   </a>
   <br/>
   <sup>💡 버튼을 클릭하시면 프로젝트 <b>PDF 소개서</b>로 이동합니다.</sup>
 </p>
-
+**개발 기간:** 2026.06.08 ~ 2026.7.09
 ---
 
 ## What is Codi?
@@ -262,6 +263,8 @@ Claude Desktop · Cursor에서 Codi의 도구를 직접 호출할 수 있다.
 | **강미현** (팀원) | 대시보드 · 파이프라인 · 어드민 기능 구현 · QA | React 기반 대시보드 개발 및 파이프라인 이력/상세/통계/관리자 화면 구현. Vercel 배포 및 API 연동·안정화. UI/UX 최적화 및 QA 담당 <br>🏷️ _대시보드, 파이프라인, 어드민, Vercel, QA_ |
 | **신창희** (팀원) | 기획 · UI/UX · 발표                           | React 대시보드 개발. 파이프라인 이력·상세·알림 화면. UI/UX 디자인·발표 자료·품질 검증 담당 <br>🏷️ _React, UI/UX, 발표, 문서_                                                      |
 
+---
+
 ## License
 
-## [MIT](LICENSE) © 2026 Team Codi
+[MIT](LICENSE) © 2026 Team Codi
