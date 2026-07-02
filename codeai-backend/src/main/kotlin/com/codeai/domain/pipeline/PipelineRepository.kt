@@ -15,6 +15,8 @@ interface PipelineRepository {
     suspend fun findRecent(limit: Int): List<PipelineExecution>
     suspend fun findCompletedSince(days: Int, repositoryId: Long? = null): List<PipelineExecution>
     suspend fun findActive(repositoryId: Long, prNumber: Int): PipelineExecution?
+    /** cutoff 이전에 생성됐는데 아직 진행중(PENDING/RUNNING)인 고아 파이프라인. */
+    suspend fun findStale(statuses: List<PipelineStatus>, cutoff: java.time.LocalDateTime): List<PipelineExecution>
 }
 
 data class PipelineExecutionPage(
