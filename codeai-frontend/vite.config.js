@@ -12,30 +12,20 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // 1️⃣ /api 요청 우회 설정
+      // 대시보드 API는 로컬 백엔드에 직접 붙는다.
+      // (ngrok 무료 터널 경유는 동시연결 제한·간헐 끊김으로 500 유발 → 대시보드에는 부적합.
+      //  ngrok 은 GitHub 웹훅 인바운드용으로만 사용하고, 필요 시 아래 target 만 ngrok URL 로 교체.)
       '/api': {
-        target: 'https://outing-revisable-kitten.ngrok-free.dev', // https로 변경
-        changeOrigin: true,
-        secure: false, // SSL 인증서 검증 무시
-        ws: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            // 🔥 핵심: ngrok 프리 브라우저 경고 페이지 강제 스킵 헤더
-            proxyReq.setHeader('ngrok-skip-browser-warning', 'true');
-          });
-        },
-      },
-      // 2️⃣ /webhook 요청 우회 설정
-      '/webhook': {
-        target: 'https://outing-revisable-kitten.ngrok-free.dev', // https로 변경
+        target: 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
         ws: true,
-        configure: (proxy, _options) => {
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            proxyReq.setHeader('ngrok-skip-browser-warning', 'true');
-          });
-        },
+      },
+      '/webhook': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+        ws: true,
       },
     },
   },
