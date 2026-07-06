@@ -61,7 +61,7 @@ class ConnectorController(
     @PostMapping("/{category}/test")
     suspend fun test(@PathVariable category: String): ApiResponse<Any> = when (category) {
         "ai" -> ApiResponse.ok(useCase.testAi(), "AI 엔진 연결 테스트 성공")
-        "notify" -> ApiResponse.ok(useCase.testNotify(), "Slack 테스트 메시지 발송 완료")
+        "notify" -> useCase.testNotify().let { ApiResponse.ok(it, "${it.channel} 테스트 메시지 발송 완료") }
         else -> ApiResponse.ok(useCase.testStatic(category), "연결 테스트 성공")
     }
 }
