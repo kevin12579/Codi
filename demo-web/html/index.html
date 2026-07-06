@@ -89,7 +89,10 @@
 
       <div class="foot">
         <span data-testid="remaining">0개 남음</span>
-        <button class="ghost" data-testid="clear-done" onclick="clearDone()">완료 항목 지우기</button>
+        <div class="row" style="gap:6px">
+          <button class="ghost" data-testid="complete-all-btn" onclick="completeAll()">전체 완료</button>
+          <button class="ghost" data-testid="clear-done" onclick="clearDone()">완료 항목 지우기</button>
+        </div>
       </div>
     </div>
 
@@ -148,6 +151,11 @@
 
     function clearDone() {
       tasks = tasks.filter(t => !t.done);
+      render();
+    }
+
+    function completeAll() {
+      tasks.forEach(t => t.done = true);
       render();
     }
 

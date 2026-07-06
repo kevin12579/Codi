@@ -84,3 +84,18 @@ test('할 일을 삭제하면 목록에서 사라진다', async ({ page }) => {
   await expect(page.getByTestId('task-list').locator('li')).toHaveCount(0);
   await expect(page.getByTestId('empty-state')).toBeVisible();
 });
+
+test('전체 완료 버튼을 누르면 모든 항목이 완료 처리된다', async ({ page }) => {
+  await login(page);
+  await page.getByTestId('task-input').fill('할 일 A');
+  await page.getByTestId('add-btn').click();
+  await page.getByTestId('task-input').fill('할 일 B');
+  await page.getByTestId('add-btn').click();
+  await expect(page.getByTestId('remaining')).toHaveText('2개 남음');
+
+  await page.getByTestId('complete-all-btn').click();
+  await expect(page.getByTestId('remaining')).toHaveText('0개 남음');
+
+  await page.getByTestId('filter-done').click();
+  await expect(page.getByTestId('task-list').locator('li')).toHaveCount(2);
+});
