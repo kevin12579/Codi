@@ -565,22 +565,23 @@ export default function MCPHub({ isActive = true, mode = 'full', isAdmin = false
     // 💡 1. 설정 저장 함수 (PUT /api/connectors/notify)
         const handleSaveNotification = async () => {
             try {
-                const token = getAuthToken(); 
-                
+                const token = getAuthToken();
+
+                const activeProviders = [
+                    ...(slackEnabled ? ["slack"] : []),
+                    ...(discordEnabled ? ["discord"] : []),
+                ];
+                const config = {};
+                if (slackEnabled) config.slack = { webhookUrl: slackWebhook };
+                if (discordEnabled) config.discord = { webhookUrl: discordWebhook };
+
                 const response = await fetch('/api/connectors/notify', {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({
-                        activeProviders: slackEnabled ? ["slack"] : [],
-                        config: {
-                            slack: {
-                                webhookUrl: slackWebhook
-                            }
-                        }
-                    })
+                    body: JSON.stringify({ activeProviders, config })
                 });
 
                 const result = await response.json();

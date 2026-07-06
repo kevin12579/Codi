@@ -4,7 +4,6 @@ import com.codeai.domain.admin.UserActivityLog
 import com.codeai.domain.admin.UserActivityLogRepository
 import com.codeai.infrastructure.connector.ConnectorConfigService
 import com.codeai.infrastructure.persistence.settings.SettingsStore
-import com.codeai.infrastructure.slack.SlackWebhookClient
 import com.codeai.plugin.registry.ProviderRegistry
 import com.codeai.presentation.connector.AiTestResultDto
 import com.codeai.presentation.connector.ConnectorCategoryDetailDto
@@ -30,7 +29,6 @@ class ConnectorUseCase(
     private val settings: SettingsStore,
     private val connectorConfig: ConnectorConfigService,
     private val registry: ProviderRegistry,
-    private val slackWebhookClient: SlackWebhookClient,
     private val activityLogRepository: UserActivityLogRepository,
     @Value("\${claude.api.key:}") private val claudeKey: String,
 ) {
@@ -62,21 +60,26 @@ class ConnectorUseCase(
         val known = knownIds(category)
         val active = activeProviders.firstOrNull()
             ?: throw IllegalArgumentException("activeProviders가 비어 있습니다.")
-        if (active !in known) throw ConnectorNotSupportedException("지원하지 않는 플러그인입니다: $active")
+        activeProviders.forEach {
+            if (it !in known) throw ConnectorNotSupportedException("지원하지 않는 플러그인입니다: $it")
+        }
 
         config.forEach { (providerId, cfg) ->
             if (providerId !in known) throw ConnectorNotSupportedException("지원하지 않는 플러그인입니다: $providerId")
-            connectorConfig.saveConfig(category, providerId, isActive = providerId == active, config = cfg)
+            connectorConfig.saveConfig(category, providerId, isActive = providerId in activeProviders, config = cfg)
         }
 
         when (category) {
             "ai" -> settings.set(ProviderRegistry.KEY_AI_ENGINE, active)
             "notify" -> {
-                settings.set(ProviderRegistry.KEY_NOTIFY_CHANNELS, active)
+                // v0.9 다중 라우팅: notify.channels 는 콤마 리스트 전부를 활성 채널로 저장(NotifyUseCase가 각각 발송).
+                settings.set(ProviderRegistry.KEY_NOTIFY_CHANNELS, activeProviders.joinToString(","))
                 // 채널별 webhook URL 저장 (v0.9: slack | discord). slack 은 기존 키도 미러링(하위호환).
-                config[active]?.get("webhookUrl")?.let { url ->
-                    settings.set("$active.webhook.url", url)
-                    if (active == "slack") settings.set("slack.webhook.url", url)
+                config.forEach { (providerId, cfg) ->
+                    cfg["webhookUrl"]?.let { url ->
+                        settings.set("$providerId.webhook.url", url)
+                        if (providerId == "slack") settings.set("slack.webhook.url", url)
+                    }
                 }
             }
             "test" -> settings.set(ProviderRegistry.KEY_TEST_RUNNER, active)
@@ -108,12 +111,22 @@ class ConnectorUseCase(
         return AiTestResultDto(engine = engine.id, latencyMs = latency, sampleReview = sample)
     }
 
+    /** 현재 활성화된 알림 채널 전부(예: slack+discord)에 테스트 메시지 발송. */
     suspend fun testNotify(): NotifyTestResultDto {
-        val url = settings.get("slack.webhook.url")
-        if (url.isNullOrBlank()) throw NotifyNotConfiguredException("Slack Webhook URL이 설정되지 않았습니다.")
-        val sent = slackWebhookClient.send(mapOf("text" to "코디 커넥터 연결 테스트 메시지입니다. ✅"), url)
-        if (!sent) throw ConnectorTestFailedException("Slack 발송 실패. Webhook URL을 확인하세요.")
-        return NotifyTestResultDto(sent = true, channel = "slack", sentAt = LocalDateTime.now().toString())
+        val channels = registry.activeChannels()
+        if (channels.isEmpty()) throw NotifyNotConfiguredException("활성화된 알림 채널이 없습니다.")
+
+        val testedChannels = mutableListOf<String>()
+        for (channel in channels) {
+            val url = settings.get("${channel.id}.webhook.url")
+                ?: settings.get("slack.webhook.url").takeIf { channel.id == "slack" }
+            if (url.isNullOrBlank()) continue
+            if (channel.send(mapOf("text" to "코디 커넥터 연결 테스트 메시지입니다. ✅"), url)) {
+                testedChannels += channel.id
+            }
+        }
+        if (testedChannels.isEmpty()) throw ConnectorTestFailedException("발송 실패. Webhook URL을 확인하세요.")
+        return NotifyTestResultDto(sent = true, channel = testedChannels.joinToString(","), sentAt = LocalDateTime.now().toString())
     }
 
     /** vcs/test/deploy 는 V1 고정 — 단순 성공 응답. */
