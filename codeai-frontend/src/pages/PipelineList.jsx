@@ -97,7 +97,9 @@ export default function PipelineList({ onSelectPipeline }) {
     const fetchPipelines = (silent = false) => {
         if (!silent) setIsLoading(true)
         const savedToken = localStorage.getItem('authToken')
-        const params = new URLSearchParams({ page: 0, size: 20 })
+        // 클라이언트 사이드에서 ITEMS_PER_PAGE(10)개씩 다시 나눠서 보여주므로
+        // 서버에서는 필터에 해당하는 전체 파이프라인을 한 번에 받아온다
+        const params = new URLSearchParams({ page: 0, size: 1000 })
         if (statusFilter) params.append('status', statusFilter)
         if (repoFilter) params.append('repositoryId', repoFilter)
         if (dateFrom) params.append('from', new Date(dateFrom).toISOString())
